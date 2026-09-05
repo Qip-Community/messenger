@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>QIP Community — мессенджер</title>
-<meta name="description" content="QIP Community: настоящий браузерный мессенджер с общим чатом и личными сообщениями.">
+<meta name="description" content="QIP Community: настоящий браузерный мессенджер с общим чатом, друзьями и уведомлениями.">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -54,9 +54,11 @@
     </div>
 
     <div id="search-row">
-      <input type="text" id="search-input" placeholder="Поиск контакта…">
+      <input type="text" id="search-input" placeholder="Поиск среди друзей…">
+      <button id="add-friend-btn" title="Добавить друга по email">+</button>
     </div>
 
+    <div id="friend-requests-list"></div>
     <div id="contacts-list"></div>
   </aside>
 

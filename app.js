@@ -1,15 +1,21 @@
-// ===== QIP Community — реальный чат на Firebase (Auth + Firestore) =====
+// ===== QIP Community — Firebase (Auth + Firestore) + друзья + уведомления =====
 
 const PUBLIC_ROOM_ID = 'public';
+const BASE_TITLE = document.title;
 
 let currentUser = null;      // { uid, name, status }
-let allUsers = [];           // все зарегистрированные пользователи (кроме себя)
-let openTabs = [];           // массив id: 'public' или uid контакта
+let allProfiles = [];        // все зарегистрированные пользователи (профили, кроме себя)
+let friendUids = new Set();  // uid-ы принятых друзей
+let openTabs = [];           // 'public' или uid друга
 let activeTab = null;
-let unsubMessages = {};      // id -> unsubscribe-функция firestore listener
+let unsubMessages = {};      // id -> unsubscribe firestore listener
 let unread = {};             // id -> счётчик непрочитанных
+let initializedChats = new Set(); // чтобы не звенеть на всю историю при первой загрузке
+let unsubFriendships = null;
+let unsubRequests = null;
+let incomingRequests = [];   // входящие заявки в друзья (pending)
 
-// ===== DOM =====
+// ===== DOM: авторизация =====
 const authScreen = document.getElementById('auth-screen');
 const appEl = document.getElementById('app');
 const loginForm = document.getElementById('login-form');
@@ -49,7 +55,7 @@ registerForm.addEventListener('submit', async (e) => {
     const cred = await auth.createUserWithEmailAndPassword(email, password);
     await db.collection('users').doc(cred.user.uid).set({
       name: name || email.split('@')[0],
-      email,
+      email: email.toLowerCase(),
       status: 'online',
       mood: '',
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -86,16 +92,27 @@ auth.onAuthStateChanged(async (user) => {
     document.getElementById('status-select').value = currentUser.status;
 
     setPresence('online');
-    window.addEventListener('beforeunload', () => setPresence('offline_soon'));
+    window.addEventListener('beforeunload', () => setPresence('offline'));
 
-    listenUsers();
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
+    listenProfiles();
+    listenFriendships();
+    listenFriendRequests();
     openChat(PUBLIC_ROOM_ID);
   } else {
     currentUser = null;
     Object.values(unsubMessages).forEach(fn => fn && fn());
     unsubMessages = {};
+    if (unsubFriendships) unsubFriendships();
+    if (unsubRequests) unsubRequests();
     openTabs = [];
     activeTab = null;
+    friendUids = new Set();
+    incomingRequests = [];
+    initializedChats = new Set();
     authScreen.style.display = 'flex';
     appEl.style.display = 'none';
   }
@@ -112,26 +129,123 @@ document.getElementById('status-select').addEventListener('change', (e) => {
 
 async function setPresence(status){
   if(!currentUser) return;
-  const real = status === 'offline_soon' ? 'offline' : status;
-  currentUser.status = real;
+  currentUser.status = status;
   try{
-    await db.collection('users').doc(currentUser.uid).update({ status: real });
+    await db.collection('users').doc(currentUser.uid).update({ status });
   }catch(e){ /* пользователь мог уже разлогиниться */ }
 }
 
-// ===== Список пользователей (контакты) =====
-function listenUsers(){
+// ===== Профили всех пользователей (нужны для карточек друзей и поиска по email) =====
+function listenProfiles(){
   db.collection('users').onSnapshot(snap => {
-    allUsers = [];
+    allProfiles = [];
     snap.forEach(doc => {
       if(doc.id === currentUser.uid) return;
-      allUsers.push({ id: doc.id, ...doc.data() });
+      allProfiles.push({ id: doc.id, ...doc.data() });
     });
     renderContacts();
-    renderTabs(); // обновить статус-точки в открытых вкладках
+    renderTabs();
   });
 }
 
+// ===== Друзья =====
+function listenFriendships(){
+  unsubFriendships = db.collection('friendships')
+    .where('users', 'array-contains', currentUser.uid)
+    .onSnapshot(snap => {
+      friendUids = new Set();
+      snap.forEach(doc => {
+        const other = doc.data().users.find(u => u !== currentUser.uid);
+        if(other) friendUids.add(other);
+      });
+      renderContacts();
+    });
+}
+
+function listenFriendRequests(){
+  unsubRequests = db.collection('friendRequests')
+    .where('to', '==', currentUser.uid)
+    .where('status', '==', 'pending')
+    .onSnapshot(snap => {
+      incomingRequests = [];
+      snap.forEach(doc => incomingRequests.push({ id: doc.id, ...doc.data() }));
+      renderFriendRequests();
+    });
+}
+
+document.getElementById('add-friend-btn').addEventListener('click', async () => {
+  const email = prompt('Email друга, которого хочешь добавить:');
+  if(!email || !email.trim()) return;
+  const targetEmail = email.trim().toLowerCase();
+
+  if(targetEmail === (currentUser && (await db.collection('users').doc(currentUser.uid).get()).data().email)){
+    alert('Это твой собственный email :)');
+    return;
+  }
+
+  const target = allProfiles.find(p => (p.email || '').toLowerCase() === targetEmail);
+  if(!target){
+    alert('Пользователь с таким email не зарегистрирован в QIP Community.');
+    return;
+  }
+  if(friendUids.has(target.id)){
+    alert('Вы уже друзья.');
+    return;
+  }
+
+  const existing = await db.collection('friendRequests')
+    .where('from', '==', currentUser.uid)
+    .where('to', '==', target.id)
+    .where('status', '==', 'pending')
+    .get();
+  if(!existing.empty){
+    alert('Заявка уже отправлена, ждите ответа.');
+    return;
+  }
+
+  await db.collection('friendRequests').add({
+    from: currentUser.uid,
+    fromName: currentUser.name,
+    to: target.id,
+    status: 'pending',
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  alert('Заявка в друзья отправлена!');
+});
+
+async function respondToRequest(reqId, accept){
+  const req = incomingRequests.find(r => r.id === reqId);
+  if(!req) return;
+  await db.collection('friendRequests').doc(reqId).update({
+    status: accept ? 'accepted' : 'declined'
+  });
+  if(accept){
+    const pair = [currentUser.uid, req.from].sort();
+    await db.collection('friendships').doc(pair.join('_')).set({
+      users: pair,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }
+}
+
+function renderFriendRequests(){
+  const box = document.getElementById('friend-requests-list');
+  if(!incomingRequests.length){ box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="group-header requests-header">Заявки в друзья (${incomingRequests.length})</div>` +
+    incomingRequests.map(r => `
+      <div class="friend-request-row" data-id="${r.id}">
+        <span class="contact-name">${escapeHtml(r.fromName)}</span>
+        <span class="request-actions">
+          <button class="accept-btn" data-id="${r.id}">✓</button>
+          <button class="decline-btn" data-id="${r.id}">✕</button>
+        </span>
+      </div>
+    `).join('');
+  box.querySelectorAll('.accept-btn').forEach(b => b.addEventListener('click', () => respondToRequest(b.dataset.id, true)));
+  box.querySelectorAll('.decline-btn').forEach(b => b.addEventListener('click', () => respondToRequest(b.dataset.id, false)));
+}
+
+// ===== Список контактов (только друзья) =====
 const searchInput = document.getElementById('search-input');
 searchInput.addEventListener('input', renderContacts);
 
@@ -160,14 +274,22 @@ function renderContacts(){
 
   const header = document.createElement('div');
   header.className = 'group-header';
-  header.innerHTML = `<span class="arrow">▾</span> Участники (${allUsers.length})`;
+  header.innerHTML = `<span class="arrow">▾</span> Друзья (${friendUids.size})`;
   list.appendChild(header);
 
-  const filtered = allUsers
-    .filter(u => u.name.toLowerCase().includes(query))
+  const friends = allProfiles
+    .filter(p => friendUids.has(p.id))
+    .filter(p => p.name.toLowerCase().includes(query))
     .sort((a,b) => a.name.localeCompare(b.name));
 
-  filtered.forEach(u => {
+  if(!friends.length){
+    const hint = document.createElement('div');
+    hint.className = 'empty-hint';
+    hint.textContent = 'Пока нет друзей — нажми "+" рядом с поиском и добавь по email.';
+    list.appendChild(hint);
+  }
+
+  friends.forEach(u => {
     const row = document.createElement('div');
     const unreadCount = unread[u.id] || 0;
     row.className = 'contact-row' + (u.id === activeTab ? ' active' : '') + (unreadCount ? ' unread' : '');
@@ -186,12 +308,12 @@ function renderContacts(){
 
 function getUserName(id){
   if(id === PUBLIC_ROOM_ID) return 'Общий чат';
-  const u = allUsers.find(u => u.id === id);
+  const u = allProfiles.find(u => u.id === id);
   return u ? u.name : '…';
 }
 function getUserStatus(id){
   if(id === PUBLIC_ROOM_ID) return 'online';
-  const u = allUsers.find(u => u.id === id);
+  const u = allProfiles.find(u => u.id === id);
   return u ? (u.status || 'offline') : 'offline';
 }
 
@@ -210,6 +332,7 @@ function openChat(id){
   if(!openTabs.includes(id)) openTabs.push(id);
   activeTab = id;
   unread[id] = 0;
+  updateTitle();
   renderTabs();
   renderChats();
   renderContacts();
@@ -221,6 +344,7 @@ function closeChat(id, evt){
   if(id === PUBLIC_ROOM_ID) return; // общий чат не закрываем
   openTabs = openTabs.filter(t => t !== id);
   if(unsubMessages[id]){ unsubMessages[id](); delete unsubMessages[id]; }
+  initializedChats.delete(id);
   if(activeTab === id){
     activeTab = openTabs.length ? openTabs[openTabs.length - 1] : null;
   }
@@ -305,10 +429,10 @@ function renderChats(){
 function cssId(id){ return id.replace(/[^a-zA-Z0-9]/g, ''); }
 
 function subscribeMessages(id){
-  if(unsubMessages[id]) return; // уже подписаны
+  if(unsubMessages[id]) return; // уже подписаны, сообщения хранятся в Firestore постоянно
   unsubMessages[id] = messagesRef(id)
     .orderBy('createdAt', 'asc')
-    .limitToLast(200)
+    .limitToLast(300)
     .onSnapshot(snap => {
       const el = document.getElementById(`messages-${cssId(id)}`);
       const msgs = [];
@@ -328,13 +452,25 @@ function subscribeMessages(id){
         el.scrollTop = el.scrollHeight;
       }
 
-      if(id !== activeTab && msgs.length){
-        const last = msgs[msgs.length - 1];
-        if(last.uid !== currentUser.uid){
-          unread[id] = (unread[id] || 0) + 1;
-          renderContacts();
-          renderTabs();
-        }
+      // Уведомления/звук только для НОВЫХ сообщений, не для истории при первой загрузке
+      const isFirstLoad = !initializedChats.has(id);
+      initializedChats.add(id);
+
+      if(!isFirstLoad){
+        snap.docChanges().forEach(change => {
+          if(change.type === 'added'){
+            const m = change.doc.data();
+            if(m.uid !== currentUser.uid){
+              notifyIncoming(id, m);
+              if(id !== activeTab){
+                unread[id] = (unread[id] || 0) + 1;
+                renderContacts();
+                renderTabs();
+                updateTitle();
+              }
+            }
+          }
+        });
       }
     });
 }
@@ -343,6 +479,38 @@ function formatTime(ts){
   if(!ts || !ts.toDate) return '…';
   const d = ts.toDate();
   return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+}
+
+// ===== Уведомления: звук + системное всплывающее окно =====
+let audioCtx = null;
+function playBeep(){
+  try{
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(880, audioCtx.currentTime);
+    o.frequency.setValueAtTime(1175, audioCtx.currentTime + 0.09);
+    g.gain.setValueAtTime(0.15, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.28);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start();
+    o.stop(audioCtx.currentTime + 0.28);
+  }catch(e){ /* браузер мог заблокировать звук до первого клика пользователя — это нормально */ }
+}
+
+function notifyIncoming(id, m){
+  playBeep();
+  if('Notification' in window && Notification.permission === 'granted' && document.hidden){
+    try{
+      new Notification(m.name || getUserName(id), { body: m.text });
+    }catch(e){ /* игнор */ }
+  }
+}
+
+function updateTitle(){
+  const total = Object.values(unread).reduce((a,b) => a + b, 0);
+  document.title = total > 0 ? `(${total}) ${BASE_TITLE}` : BASE_TITLE;
 }
 
 function escapeHtml(str){

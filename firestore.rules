@@ -20,12 +20,38 @@ service cloud.firestore {
     // Личные сообщения: доступ только у двух участников переписки.
     // pairId обязан быть составлен как "<uidМеньше>_<uidБольше>" (см. app.js).
     match /dms/{pairId}/messages/{messageId} {
-      allow read: if request.auth != null && pairId.split('_').hasAny([request.auth.uid])
+      allow read: if request.auth != null
                    && pairId.split('_').size() == 2
                    && (pairId.split('_')[0] == request.auth.uid || pairId.split('_')[1] == request.auth.uid);
       allow create: if request.auth != null
                    && request.resource.data.uid == request.auth.uid
                    && (pairId.split('_')[0] == request.auth.uid || pairId.split('_')[1] == request.auth.uid);
+      allow update, delete: if false;
+    }
+
+    // Заявки в друзья: видят и меняют только отправитель и получатель.
+    match /friendRequests/{reqId} {
+      allow read: if request.auth != null
+                   && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
+      allow create: if request.auth != null
+                   && request.resource.data.from == request.auth.uid
+                   && request.resource.data.status == 'pending';
+      // Принять/отклонить может только получатель заявки.
+      allow update: if request.auth != null
+                   && resource.data.to == request.auth.uid
+                   && request.resource.data.from == resource.data.from
+                   && request.resource.data.to == resource.data.to;
+      allow delete: if request.auth != null
+                   && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
+    }
+
+    // Дружба: документ создаётся после принятия заявки,
+    // поле users = [uidA, uidB] — доступ есть только у этих двоих.
+    match /friendships/{pairId} {
+      allow read: if request.auth != null && request.auth.uid in resource.data.users;
+      allow create: if request.auth != null
+                   && request.auth.uid in request.resource.data.users
+                   && request.resource.data.users.size() == 2;
       allow update, delete: if false;
     }
   }

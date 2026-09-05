@@ -377,6 +377,49 @@ html,body{height:100%;margin:0;background:#c8d7ec;color:var(--text);font-size:13
 .contact-row.public-room{border-bottom:1px solid #cdd9ea;background:#f4f9ff;}
 .contact-row.public-room .contact-name{font-weight:bold;color:var(--title-blue-1);}
 
+#add-friend-btn{
+  width:24px;
+  border:1px solid var(--border);
+  border-radius:2px;
+  background:linear-gradient(180deg,#fff,#dbe8fb);
+  cursor:pointer;
+  font-weight:bold;
+  color:var(--title-blue-1);
+}
+#add-friend-btn:hover{background:#cfe2fb;}
+
+.requests-header{background:#fff3cd;color:#8a6d1d;}
+
+.friend-request-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:6px 10px;
+  background:#fffaf0;
+  border-bottom:1px solid #f0e6c8;
+  font-size:12.5px;
+}
+.request-actions{display:flex;gap:4px;}
+.request-actions button{
+  width:22px;height:22px;
+  border:1px solid var(--border);
+  border-radius:3px;
+  cursor:pointer;
+  font-size:12px;
+  background:#fff;
+}
+.accept-btn{color:#2e8b3d;}
+.accept-btn:hover{background:#e3f6e6;}
+.decline-btn{color:#c0392b;}
+.decline-btn:hover{background:#fbe4e1;}
+
+.empty-hint{
+  padding:14px 12px;
+  color:#8a97a8;
+  font-size:12px;
+  line-height:1.5;
+}
+
 .msg .sender{
   display:block;
   font-size:11px;
