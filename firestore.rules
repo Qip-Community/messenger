@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Профили пользователей: читать может любой залогиненный,
+    // редактировать — только сам пользователь.
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if false;
+    }
+
+    // Общая комната: читать/писать может любой залогиненный пользователь.
+    match /rooms/{roomId}/messages/{messageId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Личные сообщения: доступ только у двух участников переписки.
+    // pairId обязан быть составлен как "<uidМеньше>_<uidБольше>" (см. app.js).
+    match /dms/{pairId}/messages/{messageId} {
+      allow read: if request.auth != null && pairId.split('_').hasAny([request.auth.uid])
+                   && pairId.split('_').size() == 2
+                   && (pairId.split('_')[0] == request.auth.uid || pairId.split('_')[1] == request.auth.uid);
+      allow create: if request.auth != null
+                   && request.resource.data.uid == request.auth.uid
+                   && (pairId.split('_')[0] == request.auth.uid || pairId.split('_')[1] == request.auth.uid);
+      allow update, delete: if false;
+    }
+  }
+}

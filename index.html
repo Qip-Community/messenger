@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QIP Community — мессенджер</title>
+<meta name="description" content="QIP Community: настоящий браузерный мессенджер с общим чатом и личными сообщениями.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===== Экран входа / регистрации ===== -->
+<div id="auth-screen">
+  <div id="auth-box">
+    <h1>QIP Community</h1>
+
+    <div id="auth-tabs">
+      <button class="auth-tab active" data-tab="login">Вход</button>
+      <button class="auth-tab" data-tab="register">Регистрация</button>
+    </div>
+
+    <form id="login-form" class="auth-form">
+      <input type="email" placeholder="Email" required id="login-email">
+      <input type="password" placeholder="Пароль" required id="login-password">
+      <button type="submit">Войти</button>
+      <p class="auth-error" id="login-error"></p>
+    </form>
+
+    <form id="register-form" class="auth-form" style="display:none">
+      <input type="text" placeholder="Ник (как вас видят другие)" required id="register-name" maxlength="30">
+      <input type="email" placeholder="Email" required id="register-email">
+      <input type="password" placeholder="Пароль (мин. 6 символов)" required id="register-password" minlength="6">
+      <button type="submit">Зарегистрироваться</button>
+      <p class="auth-error" id="register-error"></p>
+    </form>
+  </div>
+</div>
+
+<!-- ===== Приложение ===== -->
+<div id="app" style="display:none">
+
+  <aside id="contacts-panel">
+    <div id="own-status-bar">
+      <div id="own-avatar">Я</div>
+      <div id="own-info">
+        <div id="own-name">—</div>
+        <select id="status-select">
+          <option value="online">🟢 Онлайн</option>
+          <option value="away">🌙 Отошёл</option>
+          <option value="dnd">⛔ Не беспокоить</option>
+        </select>
+      </div>
+      <button id="logout-btn" title="Выйти">⏻</button>
+    </div>
+
+    <div id="search-row">
+      <input type="text" id="search-input" placeholder="Поиск контакта…">
+    </div>
+
+    <div id="contacts-list"></div>
+  </aside>
+
+  <main id="chat-area">
+    <div id="tabs-row"></div>
+    <div id="chats-container"></div>
+    <div id="empty-state">
+      <p>Выберите общий чат или контакт слева</p>
+    </div>
+  </main>
+
+</div>
+
+<!-- Firebase SDK (compat, без сборщика — подходит для GitHub Pages) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<script src="firebase-config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
