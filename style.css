@@ -1,314 +1,148 @@
-* {
-  box-sizing: border-box;
-  font-family: Tahoma, "Segoe UI", Geneva, Verdana, sans-serif;
-  font-size: 11px;
-  margin: 0;
-  padding: 0;
-  user-select: none;
-}
+document.addEventListener('DOMContentLoaded', () => {
+  let selectedContactElement = null;
 
-body {
-  background-color: #ece9d8;
-  padding: 20px;
-}
+  const contextMenu = document.getElementById('contactMenu');
+  const menuTitle = document.getElementById('menuTitle');
+  const userInfoWin = document.getElementById('userInfoWin');
+  const chatWin = document.getElementById('chatWin');
 
-/* Окно списка контактов */
-.contact-list-win {
-  width: 220px;
-  border: 1px solid #0055ea;
-  background: #c0daf2;
-  box-shadow: 2px 2px 6px rgba(0,0,0,0.4);
-}
+  // Обработка ПКМ по контактам
+  document.querySelectorAll('.contact-item').forEach(item => {
+    item.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      
+      selectedContactElement = item;
 
-.win-header {
-  background: linear-gradient(to right, #0a246a, #a6caf0);
-  color: white;
-  font-weight: bold;
-  padding: 3px 6px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
+      const uin = item.dataset.uin || '';
+      const nick = item.dataset.nick || '';
 
-.win-controls {
-  display: flex;
-  gap: 4px;
-}
+      if (menuTitle) menuTitle.innerText = `${uin} - ${nick}`;
 
-.win-btn {
-  cursor: pointer;
-  padding: 0 3px;
-  font-weight: bold;
-}
+      if (contextMenu) {
+        contextMenu.style.left = `${event.clientX}px`;
+        contextMenu.style.top = `${event.clientY}px`;
+        contextMenu.style.display = 'block';
+      }
+    });
 
-.win-btn:hover {
-  background-color: rgba(255, 255, 255, 0.3);
-}
+    item.addEventListener('click', () => {
+      selectedContactElement = item;
+    });
+  });
 
-.group-header {
-  background: #d0e4f7;
-  padding: 3px 6px;
-  font-weight: bold;
-  color: #000080;
-  border-bottom: 1px solid #b4cbe3;
-  cursor: pointer;
-}
+  // Закрытие контекстного меню при клике в любое место
+  document.addEventListener('click', (event) => {
+    if (contextMenu && !contextMenu.contains(event.target)) {
+      contextMenu.style.display = 'none';
+    }
+  });
 
-.contact-item {
-  padding: 4px 8px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
+  // Открытие окна "Данные пользователя"
+  const btnUserInfo = document.getElementById('btnUserInfo');
+  if (btnUserInfo) {
+    btnUserInfo.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!selectedContactElement) return;
 
-.contact-item:hover {
-  background-color: #316ac5;
-  color: white;
-}
+      const dataset = selectedContactElement.dataset;
 
-/* Выпадающее контекстное меню */
-.context-menu {
-  position: fixed;
-  display: none;
-  background: #ffffff;
-  border: 1px solid #666666;
-  box-shadow: 3px 3px 5px rgba(0,0,0,0.3);
-  z-index: 99999;
-  padding: 2px;
-  width: 250px;
-}
+      document.getElementById('infoWinTitle').innerText = `Данные: [${dataset.uin} - ${dataset.nick}]`;
+      document.getElementById('headerUin').innerText = dataset.uin || '-';
+      document.getElementById('headerNick').innerText = dataset.nick || '-';
+      document.getElementById('headerName').innerText = dataset.name || '-';
+      document.getElementById('headerAddress').innerText = `${dataset.country || ''} ${dataset.city || ''}`.trim() || '-';
+      document.getElementById('headerGender').innerText = dataset.gender || '-';
+      document.getElementById('headerAge').innerText = dataset.age || '-';
+      document.getElementById('headerDob').innerText = `${dataset.dobDay || ''}/${dataset.dobMonth || ''}/${dataset.dobYear || ''}`;
 
-.menu-header {
-  background: #f0f0f0;
-  font-weight: bold;
-  padding: 4px 8px;
-  border-bottom: 1px solid #d4d0c8;
-  color: #000080;
-}
+      document.getElementById('infoUin').value = dataset.uin || '';
+      document.getElementById('tabInfoUin').value = dataset.uin || '';
+      document.getElementById('infoNick').value = dataset.nick || '';
+      document.getElementById('infoName').value = dataset.name || '';
+      document.getElementById('infoGender').value = dataset.gender || '';
+      document.getElementById('infoAge').value = dataset.age || '';
+      
+      document.getElementById('infoEmail').value = dataset.email || '';
+      document.getElementById('infoCountry').value = dataset.country || '';
+      document.getElementById('infoCity').value = dataset.city || '';
+      document.getElementById('infoRegion').value = dataset.region || '';
+      document.getElementById('infoPhone').value = dataset.phone || '';
+      
+      document.getElementById('infoCompany').value = dataset.workCompany || 'Не указано';
+      document.getElementById('infoPosition').value = dataset.workPosition || 'Не указано';
+      
+      document.getElementById('infoDobDay').value = dataset.dobDay || '';
+      document.getElementById('infoDobMonth').value = dataset.dobMonth || '';
+      document.getElementById('infoDobYear').value = dataset.dobYear || '';
+      
+      document.getElementById('infoAbout').value = dataset.about || '';
 
-.menu-item {
-  padding: 3px 10px;
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  white-space: nowrap;
-}
+      if (userInfoWin) userInfoWin.style.display = 'block';
+      if (contextMenu) contextMenu.style.display = 'none';
+    });
+  }
 
-.menu-item:hover {
-  background-color: #316ac5;
-  color: white;
-}
+  // Открытие окна сообщений
+  const btnSendMessage = document.getElementById('btnSendMessage');
+  if (btnSendMessage) {
+    btnSendMessage.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!selectedContactElement) return;
 
-.menu-item.danger {
-  color: #b00000;
-}
+      const nick = selectedContactElement.dataset.nick;
+      document.getElementById('chatWinTitle').innerText = `Сообщение для: ${nick}`;
+      if (chatWin) chatWin.style.display = 'block';
+      if (contextMenu) contextMenu.style.display = 'none';
+    });
+  }
 
-.menu-item.danger:hover {
-  color: white;
-  background-color: #c9302c;
-}
+  // Отправка сообщений
+  const btnSendMsg = document.getElementById('btnSendMsg');
+  if (btnSendMsg) {
+    btnSendMsg.addEventListener('click', () => {
+      const input = document.getElementById('chatInput');
+      const history = document.getElementById('chatHistory');
+      if (input && input.value.trim() !== '') {
+        const msg = document.createElement('div');
+        msg.innerHTML = `<b>Я:</b> ${input.value}`;
+        history.appendChild(msg);
+        input.value = '';
+        history.scrollTop = history.scrollHeight;
+      }
+    });
+  }
 
-.menu-divider {
-  height: 1px;
-  background: #d4d0c8;
-  margin: 3px 1px;
-}
+  // Копирование UIN
+  const btnCopyUin = document.getElementById('btnCopyUin');
+  if (btnCopyUin) {
+    btnCopyUin.addEventListener('click', () => {
+      if (selectedContactElement) {
+        navigator.clipboard.writeText(selectedContactElement.dataset.uin || '');
+      }
+      if (contextMenu) contextMenu.style.display = 'none';
+    });
+  }
 
-/* Окно данных пользователя */
-.user-info-win {
-  position: fixed;
-  top: 50px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 520px;
-  background: #f0f0f0;
-  border: 2px solid #0a246a;
-  box-shadow: 4px 4px 12px rgba(0,0,0,0.5);
-  display: none;
-  z-index: 999999;
-}
+  // Переключение вкладок
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
 
-.info-top-bar {
-  display: flex;
-  padding: 8px;
-  background: #f5f5f5;
-  border-bottom: 1px solid #d4d0c8;
-  gap: 12px;
-}
+      btn.classList.add('active');
+      const targetPane = document.getElementById(btn.dataset.tab);
+      if (targetPane) targetPane.classList.add('active');
+    });
+  });
 
-.qip-logo-box {
-  width: 80px;
-  height: 80px;
-  border: 1px solid #999;
-  background: #fff;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
+  // Обработчики закрытия
+  const btnCloseInfo = document.getElementById('btnCloseInfo');
+  if (btnCloseInfo) btnCloseInfo.addEventListener('click', () => userInfoWin.style.display = 'none');
 
-.qip-logo-placeholder {
-  font-size: 20px;
-  font-weight: bold;
-  color: #8dbd00;
-}
+  const btnFooterClose = document.getElementById('btnFooterClose');
+  if (btnFooterClose) btnFooterClose.addEventListener('click', () => userInfoWin.style.display = 'none');
 
-.user-header-details {
-  flex: 1;
-}
-
-.uin-line {
-  margin-bottom: 4px;
-}
-
-.quick-info {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2px 10px;
-  margin-top: 4px;
-}
-
-/* Вкладки */
-.info-body {
-  display: flex;
-  padding: 8px;
-  gap: 8px;
-  background: #ece9d8;
-}
-
-.sidebar-tabs {
-  width: 110px;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.tab-btn {
-  background: #e0e0e0;
-  border: 1px solid #7f9db9;
-  padding: 4px 6px;
-  text-align: left;
-  cursor: pointer;
-  outline: none;
-}
-
-.tab-btn.active {
-  background: #ffffff;
-  font-weight: bold;
-  border-right: 1px solid #ffffff;
-  margin-right: -1px;
-  z-index: 2;
-}
-
-.tab-content {
-  flex: 1;
-  background: #ffffff;
-  border: 1px solid #7f9db9;
-  padding: 10px;
-  height: 230px;
-  overflow-y: auto;
-}
-
-.tab-pane {
-  display: none;
-}
-
-.tab-pane.active {
-  display: block;
-}
-
-.group-box {
-  border: 1px solid #d4d0c8;
-  padding: 8px;
-  margin-bottom: 8px;
-}
-
-.group-box legend {
-  padding: 0 4px;
-  color: #000080;
-  font-weight: bold;
-}
-
-.field-row {
-  margin-bottom: 5px;
-  display: flex;
-  align-items: center;
-}
-
-.field-row label {
-  width: 100px;
-  color: #333;
-}
-
-.field-row input {
-  flex: 1;
-  padding: 2px 4px;
-  border: 1px solid #7f9db9;
-  background: #fafafa;
-}
-
-.field-row-inline {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.info-footer {
-  display: flex;
-  justify-content: space-between;
-  padding: 6px 8px;
-  background: #f0f0f0;
-  border-top: 1px solid #d4d0c8;
-}
-
-.qip-btn {
-  padding: 3px 10px;
-  border: 1px solid #003c74;
-  background: linear-gradient(to bottom, #ffffff, #e3e3e3);
-  cursor: pointer;
-}
-
-.qip-btn:hover {
-  background: #e0edf9;
-}
-
-/* Окно диалога сообщений */
-.chat-win {
-  position: fixed;
-  top: 100px;
-  left: 300px;
-  width: 380px;
-  background: #ece9d8;
-  border: 2px solid #0a246a;
-  box-shadow: 4px 4px 10px rgba(0,0,0,0.3);
-  display: none;
-  z-index: 999998;
-}
-
-.chat-body {
-  padding: 8px;
-}
-
-.chat-history {
-  width: 100%;
-  height: 150px;
-  background: #fff;
-  border: 1px solid #7f9db9;
-  padding: 6px;
-  overflow-y: auto;
-  margin-bottom: 8px;
-}
-
-.chat-input-box {
-  display: flex;
-  gap: 6px;
-}
-
-.chat-input-box textarea {
-  flex: 1;
-  height: 40px;
-  border: 1px solid #7f9db9;
-  resize: none;
-  padding: 4px;
-}
+  const btnCloseChat = document.getElementById('btnCloseChat');
+  if (btnCloseChat) btnCloseChat.addEventListener('click', () => chatWin.style.display = 'none');
+});
