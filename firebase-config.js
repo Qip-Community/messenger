@@ -1,44 +1,19 @@
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
+// ЗАМЕНИ значения ниже на конфиг твоего Firebase-проекта.
+// Как получить: Firebase Console → Настройки проекта → раздел "Ваши приложения" →
+// веб-приложение (</>) → скопировать объект firebaseConfig.
+// Это НЕ секретные ключи в привычном смысле — они видны в исходниках любого
+// сайта на Firebase, доступ реально ограничивают правила безопасности Firestore
+// (см. firestore.rules), а не сокрытие этих значений.
 
-    match /users/{userId} {
-      allow read: if request.auth != null;
-      allow create, update: if request.auth != null && request.auth.uid == userId;
-      allow delete: if false;
-    }
+const firebaseConfig = {
+  apiKey: "AIzaSyB6Sk-mw2WP18XGXziTfxoVPlGkhR0foHk",
+  authDomain: "qip-community-messenger.firebaseapp.com",
+  projectId: "qip-community-messenger",
+  storageBucket: "qip-community-messenger.firebasestorage.app",
+  messagingSenderId: "1:713297154992:web:44209411bf7c78b8b77c75",
+  appId: "G-SN2CFLFT0V"
+};
 
-    match /rooms/{roomId}/messages/{messageId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if false;
-    }
-
-    match /dms/{pairId}/messages/{messageId} {
-      allow read: if request.auth != null 
-                   && pairId.contains(request.auth.uid);
-      allow create: if request.auth != null 
-                   && request.resource.data.uid == request.auth.uid
-                   && pairId.contains(request.auth.uid);
-      allow update, delete: if false;
-    }
-
-    match /friendRequests/{reqId} {
-      allow read: if request.auth != null
-                   && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
-      allow create: if request.auth != null
-                   && request.resource.data.from == request.auth.uid
-                   && request.resource.data.status == 'pending';
-      allow update: if request.auth != null
-                   && resource.data.to == request.auth.uid;
-      allow delete: if request.auth != null
-                   && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
-    }
-
-    match /friendships/{pairId} {
-      allow read: if request.auth != null && request.auth.uid in resource.data.users;
-      allow create: if request.auth != null && request.auth.uid in request.resource.data.users;
-      allow update, delete: if false;
-    }
-  }
-}
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();

@@ -29,42 +29,46 @@ document.querySelectorAll('.auth-tab').forEach(btn => {
     document.querySelectorAll('.auth-tab').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     const isLogin = btn.dataset.tab === 'login';
-    loginForm.style.display = isLogin ? 'flex' : 'none';
-    registerForm.style.display = isLogin ? 'none' : 'flex';
+    if (loginForm) loginForm.style.display = isLogin ? 'flex' : 'none';
+    if (registerForm) registerForm.style.display = isLogin ? 'none' : 'flex';
   });
 });
 
-loginForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  loginError.textContent = '';
-  const email = document.getElementById('login-email').value.trim();
-  const password = document.getElementById('login-password').value;
-  try {
-    await auth.signInWithEmailAndPassword(email, password);
-  } catch (err) {
-    loginError.textContent = translateAuthError(err);
-  }
-});
+if (loginForm) {
+  loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (loginError) loginError.textContent = '';
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    try {
+      await auth.signInWithEmailAndPassword(email, password);
+    } catch (err) {
+      if (loginError) loginError.textContent = translateAuthError(err);
+    }
+  });
+}
 
-registerForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  registerError.textContent = '';
-  const name = document.getElementById('register-name').value.trim();
-  const email = document.getElementById('register-email').value.trim();
-  const password = document.getElementById('register-password').value;
-  try {
-    const cred = await auth.createUserWithEmailAndPassword(email, password);
-    await db.collection('users').doc(cred.user.uid).set({
-      name: name || email.split('@')[0],
-      email: email.toLowerCase(),
-      status: 'online',
-      mood: '',
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-  } catch (err) {
-    registerError.textContent = translateAuthError(err);
-  }
-});
+if (registerForm) {
+  registerForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (registerError) registerError.textContent = '';
+    const name = document.getElementById('register-name').value.trim();
+    const email = document.getElementById('register-email').value.trim();
+    const password = document.getElementById('register-password').value;
+    try {
+      const cred = await auth.createUserWithEmailAndPassword(email, password);
+      await db.collection('users').doc(cred.user.uid).set({
+        name: name || email.split('@')[0],
+        email: email.toLowerCase(),
+        status: 'online',
+        mood: '',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    } catch (err) {
+      if (registerError) registerError.textContent = translateAuthError(err);
+    }
+  });
+}
 
 function translateAuthError(err){
   const map = {
@@ -86,12 +90,16 @@ auth.onAuthStateChanged(async (user) => {
       const data = doc.exists ? doc.data() : { name: user.email, status: 'online' };
       currentUser = { uid: user.uid, name: data.name || 'Пользователь', status: data.status || 'online' };
 
-      authScreen.style.display = 'none';
-      appEl.style.display = 'flex';
+      if (authScreen) authScreen.style.display = 'none';
+      if (appEl) appEl.style.display = 'flex';
 
-      document.getElementById('own-name').textContent = currentUser.name;
-      document.getElementById('own-avatar').textContent = currentUser.name[0]?.toUpperCase() || '?';
-      document.getElementById('status-select').value = currentUser.status;
+      const ownName = document.getElementById('own-name');
+      const ownAvatar = document.getElementById('own-avatar');
+      const statusSelect = document.getElementById('status-select');
+
+      if (ownName) ownName.textContent = currentUser.name;
+      if (ownAvatar) ownAvatar.textContent = currentUser.name[0]?.toUpperCase() || '?';
+      if (statusSelect) statusSelect.value = currentUser.status;
 
       setPresence('online');
 
@@ -119,19 +127,25 @@ auth.onAuthStateChanged(async (user) => {
     initializedChats = new Set();
     const chatsContainer = document.getElementById('chats-container');
     if(chatsContainer) chatsContainer.innerHTML = '';
-    authScreen.style.display = 'flex';
-    appEl.style.display = 'none';
+    if (authScreen) authScreen.style.display = 'flex';
+    if (appEl) appEl.style.display = 'none';
   }
 });
 
-document.getElementById('logout-btn').addEventListener('click', async () => {
-  await setPresence('offline');
-  await auth.signOut();
-});
+const logoutBtn = document.getElementById('logout-btn');
+if (logoutBtn) {
+  logoutBtn.addEventListener('click', async () => {
+    await setPresence('offline');
+    await auth.signOut();
+  });
+}
 
-document.getElementById('status-select').addEventListener('change', (e) => {
-  setPresence(e.target.value);
-});
+const statusSelect = document.getElementById('status-select');
+if (statusSelect) {
+  statusSelect.addEventListener('change', (e) => {
+    setPresence(e.target.value);
+  });
+}
 
 async function setPresence(status){
   if(!currentUser) return;
@@ -386,11 +400,14 @@ function renderTabs(){
 function ensureChatWindowExists(id){
   const container = document.getElementById('chats-container');
   if(!container) return;
+  
+  // Если окно диалога с этим пользователем уже создано — не пересоздаем его!
   let win = container.querySelector(`.chat-window[data-chat-id="${id}"]`);
   if(!win){
     win = document.createElement('div');
     win.className = 'chat-window';
     win.dataset.chatId = id;
+    win.style.display = 'none'; // По умолчанию скрыто
     win.innerHTML = `
       <div class="chat-header">
         <span class="status-dot ${getUserStatus(id)}"></span>
@@ -443,11 +460,14 @@ function switchActiveWindow(id){
   const empty = document.getElementById('empty-state');
   if(!container) return;
   
+  // Явно переключаем видимость блоков через display, чтобы сообщения не терялись
   container.querySelectorAll('.chat-window').forEach(w => {
     if(w.dataset.chatId === id){
       w.classList.add('active');
+      w.style.display = 'flex';
     } else {
       w.classList.remove('active');
+      w.style.display = 'none';
     }
   });
 
