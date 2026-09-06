@@ -8,7 +8,7 @@
 </head>
 <body>
 
-  <!-- Окно списка контактов -->
+  <!-- Главное окно списка контактов -->
   <div class="contact-list-win">
     <div class="win-header">
       <span>19-324</span>
@@ -68,7 +68,7 @@
 
   <!-- Контекстное меню (ПКМ) -->
   <div id="contactMenu" class="context-menu">
-    <div id="menuTitle" class="menu-header">773989 - IGOR VEHORKOV</div>
+    <div id="menuTitle" class="menu-header">Пользователь</div>
     <div class="menu-item" id="btnSendMessage">✉️ Отправить сообщение</div>
     <div class="menu-item" id="btnAddNotice">⚠️ Отправить "Вас добавили"</div>
     <div class="menu-divider"></div>
@@ -87,14 +87,28 @@
     <div class="menu-item danger">🚫 Перенести в список игнорируемых</div>
   </div>
 
-  <!-- Окно "Данные пользователя" (QIP UserInfo) -->
+  <!-- Окно сообщения (Chat Window) -->
+  <div id="chatWin" class="chat-win">
+    <div class="win-header">
+      <span id="chatWinTitle">Сообщение для: Пользователь</span>
+      <span class="win-btn" id="btnCloseChat">×</span>
+    </div>
+    <div class="chat-body">
+      <div id="chatHistory" class="chat-history"></div>
+      <div class="chat-input-box">
+        <textarea id="chatInput" placeholder="Введите сообщение..."></textarea>
+        <button id="btnSendMsg" class="qip-btn">Отправить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Окно "Данные пользователя" (UserInfo) -->
   <div id="userInfoWin" class="user-info-win">
     <div class="win-header">
-      <span id="infoWinTitle">Данные: [773989 - IGOR VEHORKOV]</span>
+      <span id="infoWinTitle">Данные пользователя</span>
       <span class="win-btn" id="btnCloseInfo">×</span>
     </div>
 
-    <!-- Верхняя панель иконки/лого QIP -->
     <div class="info-top-bar">
       <div class="qip-logo-box">
         <div class="qip-logo-placeholder">QIP</div>
@@ -102,22 +116,21 @@
       </div>
       <div class="user-header-details">
         <div class="uin-line">
-          <strong>ICQ#: <span id="headerUin">773989</span></strong> 
+          <strong>ICQ#: <span id="headerUin">-</span></strong> 
           <span class="status-indicator">🌸 (Необходима авторизация)</span>
         </div>
         <hr>
         <div class="quick-info">
-          <div><b>Ник:</b> <span id="headerNick">Vista</span></div>
-          <div><b>Имя:</b> <span id="headerName">Игорь</span></div>
-          <div><b>Домашний адрес:</b> <span id="headerAddress">Россия</span></div>
-          <div><b>Пол:</b> <span id="headerGender">Муж.</span></div>
-          <div><b>Возраст:</b> <span id="headerAge">13</span></div>
-          <div><b>Дата рождения:</b> <span id="headerDob">18/12/2012</span></div>
+          <div><b>Ник:</b> <span id="headerNick">-</span></div>
+          <div><b>Имя:</b> <span id="headerName">-</span></div>
+          <div><b>Адрес:</b> <span id="headerAddress">-</span></div>
+          <div><b>Пол:</b> <span id="headerGender">-</span></div>
+          <div><b>Возраст:</b> <span id="headerAge">-</span></div>
+          <div><b>Дата рожд.:</b> <span id="headerDob">-</span></div>
         </div>
       </div>
     </div>
 
-    <!-- Основной блок со списком вкладок -->
     <div class="info-body">
       <div class="sidebar-tabs">
         <button class="tab-btn active" data-tab="tab-general">Общее</button>
@@ -132,7 +145,6 @@
       </div>
 
       <div class="tab-content">
-        <!-- Вкладка: Общее -->
         <div id="tab-general" class="tab-pane active">
           <div class="field-row"><label>ICQ#:</label><input type="text" id="infoUin" readonly></div>
           <div class="field-row"><label>Ник:</label><input type="text" id="infoNick" readonly></div>
@@ -141,13 +153,11 @@
           <div class="field-row"><label>Возраст:</label><input type="text" id="infoAge" readonly></div>
         </div>
 
-        <!-- Вкладка: Инфо -->
         <div id="tab-info" class="tab-pane">
           <fieldset class="group-box">
             <legend>Инфо</legend>
             <div class="field-row"><label>ICQ#:</label><input type="text" id="tabInfoUin" readonly></div>
             <div class="field-row"><label>IP:</label><input type="text" value="127.0.0.1" readonly></div>
-            <div class="field-row"><label>Подключен:</label><input type="text" value="Sun Sep 06 2026 13:44:28" readonly></div>
           </fieldset>
           <fieldset class="group-box">
             <legend>Основной email</legend>
@@ -155,18 +165,16 @@
           </fieldset>
         </div>
 
-        <!-- Вкладка: Дом -->
         <div id="tab-home" class="tab-pane">
           <fieldset class="group-box">
             <legend>Домашний адрес</legend>
             <div class="field-row"><label>Страна:</label><input type="text" id="infoCountry" readonly></div>
             <div class="field-row"><label>Город:</label><input type="text" id="infoCity" readonly></div>
-            <div class="field-row"><label>Штат/обл.:</label><input type="text" id="infoRegion" readonly></div>
+            <div class="field-row"><label>Область:</label><input type="text" id="infoRegion" readonly></div>
             <div class="field-row"><label>Телефон:</label><input type="text" id="infoPhone" readonly></div>
           </fieldset>
         </div>
 
-        <!-- Вкладка: Работа -->
         <div id="tab-work" class="tab-pane">
           <fieldset class="group-box">
             <legend>Компания</legend>
@@ -175,7 +183,6 @@
           </fieldset>
         </div>
 
-        <!-- Вкладка: Личное -->
         <div id="tab-personal" class="tab-pane">
           <fieldset class="group-box">
             <legend>Дата рождения</legend>
@@ -187,15 +194,13 @@
           </fieldset>
         </div>
 
-        <!-- Вкладка: Интересы -->
         <div id="tab-interests" class="tab-pane">
           <fieldset class="group-box">
             <legend>Личные интересы</legend>
-            <textarea style="width:100%; height:120px; resize:none;" readonly>Компьютеры, Web-разработка, QIP Interface, Игры</textarea>
+            <textarea style="width:100%; height:120px; resize:none;" readonly>Компьютеры, Разработка, QIP</textarea>
           </fieldset>
         </div>
 
-        <!-- Вкладка: Прошлое -->
         <div id="tab-past" class="tab-pane">
           <fieldset class="group-box">
             <legend>Прошлое / Организации</legend>
@@ -203,7 +208,6 @@
           </fieldset>
         </div>
 
-        <!-- Вкладка: О себе -->
         <div id="tab-about" class="tab-pane">
           <fieldset class="group-box">
             <legend>Заметки о пользователе</legend>
@@ -211,21 +215,17 @@
           </fieldset>
         </div>
 
-        <!-- Вкладка: Дополнительно -->
         <div id="tab-extra" class="tab-pane">
           <fieldset class="group-box">
             <legend>Служебная информация</legend>
             <div class="field-row"><label>Клиент:</label><input type="text" value="QIP 2005 Build 8095" readonly></div>
-            <div class="field-row"><label>Кодировка:</label><input type="text" value="Windows-1251" readonly></div>
           </fieldset>
         </div>
       </div>
     </div>
 
-    <!-- Нижние кнопки -->
     <div class="info-footer">
       <button class="qip-btn">🌐 Web-центр</button>
-      <button class="qip-btn">📥 Загрузить данные</button>
       <button class="qip-btn" id="btnFooterClose">× Закрыть</button>
     </div>
   </div>

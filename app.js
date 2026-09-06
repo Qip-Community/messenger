@@ -1,31 +1,36 @@
-// Глобальный контекст выбранного контакта
 let selectedContactElement = null;
 
-// DOM элементы
 const contextMenu = document.getElementById('contactMenu');
 const menuTitle = document.getElementById('menuTitle');
 const userInfoWin = document.getElementById('userInfoWin');
+const chatWin = document.getElementById('chatWin');
 
-// Обработка клика правой кнопкой мыши по контактам
+// Обработка клика ПКМ по контактам
 document.querySelectorAll('.contact-item').forEach(item => {
   item.addEventListener('contextmenu', (event) => {
     event.preventDefault();
+    event.stopPropagation();
+    
     selectedContactElement = item;
 
     const uin = item.dataset.uin;
     const nick = item.dataset.nick;
 
-    // Обновляем заголовок контекстного меню
     menuTitle.innerText = `${uin} - ${nick}`;
 
-    // Позиционируем меню
-    contextMenu.style.left = `${event.pageX}px`;
-    contextMenu.style.top = `${event.pageY}px`;
+    // Фикс координаты от экрана
+    contextMenu.style.left = `${event.clientX}px`;
+    contextMenu.style.top = `${event.clientY}px`;
     contextMenu.style.display = 'block';
+  });
+
+  // Клик ЛКМ по контакту отлавливает выбор
+  item.addEventListener('click', () => {
+    selectedContactElement = item;
   });
 });
 
-// Закрытие контекстного меню при клике мимо
+// Закрытие ПКМ-меню при клике мимо
 document.addEventListener('click', (event) => {
   if (!contextMenu.contains(event.target)) {
     contextMenu.style.display = 'none';
@@ -33,22 +38,21 @@ document.addEventListener('click', (event) => {
 });
 
 // Открытие окна "Данные пользователя"
-document.getElementById('btnUserInfo').addEventListener('click', () => {
+document.getElementById('btnUserInfo').addEventListener('click', (e) => {
+  e.stopPropagation();
   if (!selectedContactElement) return;
 
   const dataset = selectedContactElement.dataset;
 
-  // Заполнение шапки формы
   document.getElementById('infoWinTitle').innerText = `Данные: [${dataset.uin} - ${dataset.nick}]`;
-  document.getElementById('headerUin').innerText = dataset.uin || '';
-  document.getElementById('headerNick').innerText = dataset.nick || '';
-  document.getElementById('headerName').innerText = dataset.name || '';
-  document.getElementById('headerAddress').innerText = `${dataset.country || ''} ${dataset.city || ''}`;
-  document.getElementById('headerGender').innerText = dataset.gender || '';
-  document.getElementById('headerAge').innerText = dataset.age || '';
-  document.getElementById('headerDob').innerText = `${dataset.dobDay}/${dataset.dobMonth}/${dataset.dobYear}`;
+  document.getElementById('headerUin').innerText = dataset.uin || '-';
+  document.getElementById('headerNick').innerText = dataset.nick || '-';
+  document.getElementById('headerName').innerText = dataset.name || '-';
+  document.getElementById('headerAddress').innerText = `${dataset.country || ''} ${dataset.city || ''}`.trim() || '-';
+  document.getElementById('headerGender').innerText = dataset.gender || '-';
+  document.getElementById('headerAge').innerText = dataset.age || '-';
+  document.getElementById('headerDob').innerText = `${dataset.dobDay || ''}/${dataset.dobMonth || ''}/${dataset.dobYear || ''}`;
 
-  // Заполнение полей во вкладках
   document.getElementById('infoUin').value = dataset.uin || '';
   document.getElementById('tabInfoUin').value = dataset.uin || '';
   document.getElementById('infoNick').value = dataset.nick || '';
@@ -71,37 +75,54 @@ document.getElementById('btnUserInfo').addEventListener('click', () => {
   
   document.getElementById('infoAbout').value = dataset.about || '';
 
-  // Отображение окна
   userInfoWin.style.display = 'block';
   contextMenu.style.display = 'none';
+});
+
+// Открытие окна отправки сообщения
+document.getElementById('btnSendMessage').addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (!selectedContactElement) return;
+
+  const nick = selectedContactElement.dataset.nick;
+  document.getElementById('chatWinTitle').innerText = `Сообщение для: ${nick}`;
+  chatWin.style.display = 'block';
+  contextMenu.style.display = 'none';
+});
+
+// Отправка текста в окно диалога
+document.getElementById('btnSendMsg').addEventListener('click', () => {
+  const input = document.getElementById('chatInput');
+  const history = document.getElementById('chatHistory');
+  if (input.value.trim() !== '') {
+    const msg = document.createElement('div');
+    msg.innerHTML = `<b>Я:</b> ${input.value}`;
+    history.appendChild(msg);
+    input.value = '';
+    history.scrollTop = history.scrollHeight;
+  }
 });
 
 // Скопировать UIN
 document.getElementById('btnCopyUin').addEventListener('click', () => {
   if (selectedContactElement) {
-    const uin = selectedContactElement.dataset.uin;
-    navigator.clipboard.writeText(uin);
+    navigator.clipboard.writeText(selectedContactElement.dataset.uin);
   }
   contextMenu.style.display = 'none';
 });
 
-// Переключение вкладок в окне UserInfo
+// Переключение вкладок
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
 
     btn.classList.add('active');
-    const targetTab = btn.dataset.tab;
-    document.getElementById(targetTab).classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
   });
 });
 
-// Закрытие окна данных
-document.getElementById('btnCloseInfo').addEventListener('click', () => {
-  userInfoWin.style.display = 'none';
-});
-
-document.getElementById('btnFooterClose').addEventListener('click', () => {
-  userInfoWin.style.display = 'none';
-});
+// Закрытия окон
+document.getElementById('btnCloseInfo').addEventListener('click', () => userInfoWin.style.display = 'none');
+document.getElementById('btnFooterClose').addEventListener('click', () => userInfoWin.style.display = 'none');
+document.getElementById('btnCloseChat').addEventListener('click', () => chatWin.style.display = 'none');
