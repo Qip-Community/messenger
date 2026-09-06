@@ -1,83 +1,136 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>QIP Community — мессенджер</title>
-<meta name="description" content="QIP Community: настоящий браузерный мессенджер с общим чатом, друзьями и уведомлениями.">
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <title>QIP 2005 Messenger</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <script src="firebase-config.js"></script>
 </head>
 <body>
 
-<!-- ===== Экран входа / регистрации ===== -->
-<div id="auth-screen">
-  <div id="auth-box">
-    <h1>QIP Community</h1>
-
-    <div id="auth-tabs">
+  <!-- Авторизация -->
+  <div id="auth-screen" class="qip-window auth-window">
+    <div class="qip-titlebar">
+      <span>QIP 2005 — Вход</span>
+    </div>
+    <div class="auth-tabs">
       <button class="auth-tab active" data-tab="login">Вход</button>
       <button class="auth-tab" data-tab="register">Регистрация</button>
     </div>
-
     <form id="login-form" class="auth-form">
-      <input type="email" placeholder="Email" required id="login-email">
-      <input type="password" placeholder="Пароль" required id="login-password">
-      <button type="submit">Войти</button>
-      <p class="auth-error" id="login-error"></p>
+      <input type="email" id="login-email" placeholder="Email" required>
+      <input type="password" id="login-password" placeholder="Пароль" required>
+      <button type="submit" class="qip-btn">Войти</button>
+      <div id="login-error" class="error-msg"></div>
     </form>
-
-    <form id="register-form" class="auth-form" style="display:none">
-      <input type="text" placeholder="Ник (как вас видят другие)" required id="register-name" maxlength="30">
-      <input type="email" placeholder="Email" required id="register-email">
-      <input type="password" placeholder="Пароль (мин. 6 символов)" required id="register-password" minlength="6">
-      <button type="submit">Зарегистрироваться</button>
-      <p class="auth-error" id="register-error"></p>
+    <form id="register-form" class="auth-form" style="display:none;">
+      <input type="text" id="register-name" placeholder="Имя / Никнейм" required>
+      <input type="email" id="register-email" placeholder="Email" required>
+      <input type="password" id="register-password" placeholder="Пароль" required>
+      <button type="submit" class="qip-btn">Зарегистрироваться</button>
+      <div id="register-error" class="error-msg"></div>
     </form>
   </div>
-</div>
 
-<!-- ===== Приложение ===== -->
-<div id="app" style="display:none">
-
-  <aside id="contacts-panel">
-    <div id="own-status-bar">
-      <div id="own-avatar">Я</div>
-      <div id="own-info">
-        <div id="own-name">—</div>
-        <select id="status-select">
-          <option value="online">🟢 Онлайн</option>
-          <option value="away">🌙 Отошёл</option>
-          <option value="dnd">⛔ Не беспокоить</option>
-        </select>
+  <!-- Главное окно -->
+  <div id="app" class="qip-main-container" style="display:none;">
+    <div class="sidebar">
+      <div class="user-card">
+        <div class="avatar" id="own-avatar">?</div>
+        <div class="user-info">
+          <div class="user-name" id="own-name">Загрузка...</div>
+          <select id="status-select" class="qip-status-dropdown">
+            <option value="online">🟢 В сети</option>
+            <option value="chat">💬 Готов поболтать</option>
+            <option value="evil">😈 Злой</option>
+            <option value="depression">🌧️ Депрессия</option>
+            <option value="home">🏠 Дома</option>
+            <option value="work">🏢 На работе</option>
+            <option value="eating">🍔 Кушаю</option>
+            <option value="away">🟡 Отошел</option>
+            <option value="na">🚫 Недоступен</option>
+            <option value="busy">⛔ Занят</option>
+            <option value="dnd">🔴 Не беспокоить</option>
+            <option value="invisible">🕶️ Невидимый</option>
+            <option value="offline">⚪ Не в сети</option>
+          </select>
+        </div>
+        <div class="header-actions">
+          <button id="main-menu-btn" title="Главное меню">⚙️</button>
+        </div>
       </div>
-      <button id="logout-btn" title="Выйти">⏻</button>
+
+      <div id="main-menu-dropdown" class="qip-menu" style="display:none;">
+        <div class="menu-item" id="menu-add-user">➕ Добавить контакт</div>
+        <div class="menu-item" id="menu-add-group">📁 Создать группу</div>
+        <div class="menu-item" id="menu-settings">🔧 Настройки</div>
+        <div class="menu-divider"></div>
+        <div class="menu-item" id="menu-logout">🚪 Сменить учётку</div>
+      </div>
+
+      <div class="search-box">
+        <input type="text" id="search-input" placeholder="Поиск контактов...">
+        <button id="add-friend-btn" class="qip-btn" title="Добавить контакт">+</button>
+        <button id="add-group-btn" class="qip-btn" title="Создать группу">📁+</button>
+      </div>
+
+      <div class="contacts-list" id="contacts-list"></div>
     </div>
 
-    <div id="search-row">
-      <input type="text" id="search-input" placeholder="Поиск среди друзей…">
-      <button id="add-friend-btn" title="Добавить друга по email">+</button>
+    <div class="chat-area">
+      <div class="tabs-row" id="tabs-row"></div>
+      <div class="chats-container" id="chats-container"></div>
     </div>
+  </div>
 
-    <div id="friend-requests-list"></div>
-    <div id="contacts-list"></div>
-  </aside>
-
-  <main id="chat-area">
-    <div id="tabs-row"></div>
-    <div id="chats-container"></div>
-    <div id="empty-state">
-      <p>Выберите общий чат или контакт слева</p>
+  <!-- Модалка настроек -->
+  <div id="settings-modal" class="modal" style="display:none;">
+    <div class="qip-window settings-window">
+      <div class="qip-titlebar">
+        <span>Настройки QIP</span>
+        <button class="close-btn" id="close-settings-btn">✕</button>
+      </div>
+      <div class="settings-body">
+        <div class="settings-sidebar">
+          <div class="sidebar-item active" data-tab="tab-account">Учётная запись</div>
+          <div class="sidebar-item" data-tab="tab-general">Общие</div>
+        </div>
+        <div class="settings-content">
+          <div id="tab-account" class="tab-page active">
+            <fieldset class="qip-fieldset">
+              <legend>Профиль</legend>
+              <div class="field-row">
+                <label>UIN:</label>
+                <span id="account-uin-display" class="uin-val"></span>
+              </div>
+              <div class="field-row">
+                <label for="setting-name">Имя:</label>
+                <input type="text" id="setting-name">
+              </div>
+              <div class="field-row">
+                <label for="setting-mood">Статус-сообщение:</label>
+                <input type="text" id="setting-mood">
+              </div>
+            </fieldset>
+          </div>
+          <div id="tab-general" class="tab-page">
+            <fieldset class="qip-fieldset">
+              <legend>Звуки</legend>
+              <label><input type="checkbox" id="setting-sound" checked> Включить звуковые уведомления</label>
+            </fieldset>
+          </div>
+        </div>
+      </div>
+      <div class="settings-footer">
+        <button class="qip-btn" id="save-settings-btn">ОК</button>
+        <button class="qip-btn" id="cancel-settings-btn">Отмена</button>
+      </div>
     </div>
-  </main>
+  </div>
 
-</div>
-
-<!-- Firebase SDK (compat, без сборщика — подходит для GitHub Pages) -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-
-<script src="firebase-config.js"></script>
-<script src="app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
