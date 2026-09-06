@@ -2,133 +2,231 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>QIP 2005 Messenger</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QIP Messenger</title>
   <link rel="stylesheet" href="style.css">
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-  <script src="firebase-config.js"></script>
 </head>
 <body>
 
-  <!-- Авторизация -->
-  <div id="auth-screen" class="qip-window auth-window">
-    <div class="qip-titlebar">
-      <span>QIP 2005 — Вход</span>
+  <!-- Окно списка контактов -->
+  <div class="contact-list-win">
+    <div class="win-header">
+      <span>19-324</span>
+      <div class="win-controls">
+        <span class="win-btn">_</span>
+        <span class="win-btn">□</span>
+        <span class="win-btn">×</span>
+      </div>
     </div>
-    <div class="auth-tabs">
-      <button class="auth-tab active" data-tab="login">Вход</button>
-      <button class="auth-tab" data-tab="register">Регистрация</button>
-    </div>
-    <form id="login-form" class="auth-form">
-      <input type="email" id="login-email" placeholder="Email" required>
-      <input type="password" id="login-password" placeholder="Пароль" required>
-      <button type="submit" class="qip-btn">Войти</button>
-      <div id="login-error" class="error-msg"></div>
-    </form>
-    <form id="register-form" class="auth-form" style="display:none;">
-      <input type="text" id="register-name" placeholder="Имя / Никнейм" required>
-      <input type="email" id="register-email" placeholder="Email" required>
-      <input type="password" id="register-password" placeholder="Пароль" required>
-      <button type="submit" class="qip-btn">Зарегистрироваться</button>
-      <div id="register-error" class="error-msg"></div>
-    </form>
-  </div>
-
-  <!-- Главное окно -->
-  <div id="app" class="qip-main-container" style="display:none;">
-    <div class="sidebar">
-      <div class="user-card">
-        <div class="avatar" id="own-avatar">?</div>
-        <div class="user-info">
-          <div class="user-name" id="own-name">Загрузка...</div>
-          <select id="status-select" class="qip-status-dropdown">
-            <option value="online">🟢 В сети</option>
-            <option value="chat">💬 Готов поболтать</option>
-            <option value="evil">😈 Злой</option>
-            <option value="depression">🌧️ Депрессия</option>
-            <option value="home">🏠 Дома</option>
-            <option value="work">🏢 На работе</option>
-            <option value="eating">🍔 Кушаю</option>
-            <option value="away">🟡 Отошел</option>
-            <option value="na">🚫 Недоступен</option>
-            <option value="busy">⛔ Занят</option>
-            <option value="dnd">🔴 Не беспокоить</option>
-            <option value="invisible">🕶️ Невидимый</option>
-            <option value="offline">⚪ Не в сети</option>
-          </select>
-        </div>
-        <div class="header-actions">
-          <button id="main-menu-btn" title="Главное меню">⚙️</button>
-        </div>
-      </div>
-
-      <div id="main-menu-dropdown" class="qip-menu" style="display:none;">
-        <div class="menu-item" id="menu-add-user">➕ Добавить контакт</div>
-        <div class="menu-item" id="menu-add-group">📁 Создать группу</div>
-        <div class="menu-item" id="menu-settings">🔧 Настройки</div>
-        <div class="menu-divider"></div>
-        <div class="menu-item" id="menu-logout">🚪 Сменить учётку</div>
-      </div>
-
-      <div class="search-box">
-        <input type="text" id="search-input" placeholder="Поиск контактов...">
-        <button id="add-friend-btn" class="qip-btn" title="Добавить контакт">+</button>
-        <button id="add-group-btn" class="qip-btn" title="Создать группу">📁+</button>
-      </div>
-
-      <div id="friend-requests-container"></div>
-      <div class="contacts-list" id="contacts-list"></div>
+    
+    <div class="group-header">▼ General - 1/2</div>
+    
+    <div class="contact-item" 
+         data-uin="773989" 
+         data-nick="Vista" 
+         data-name="Игорь Вихорков" 
+         data-age="13" 
+         data-dob-day="18"
+         data-dob-month="12"
+         data-dob-year="2012"
+         data-country="Россия"
+         data-city="Москва"
+         data-region="Московская обл."
+         data-gender="Муж."
+         data-phone=""
+         data-email="vista@qip.ru"
+         data-work-company=""
+         data-work-position=""
+         data-about="Разработчик интерфейсов"
+         data-status="В сети">
+      <span class="status-icon online">🌸</span>
+      <span class="contact-name">IGOR VEHORKOV</span>
     </div>
 
-    <div class="chat-area">
-      <div class="tabs-row" id="tabs-row"></div>
-      <div class="chats-container" id="chats-container"></div>
+    <div class="contact-item" 
+         data-uin="112233" 
+         data-nick="CyberQIP" 
+         data-name="Алексей" 
+         data-age="24" 
+         data-dob-day="05"
+         data-dob-month="04"
+         data-dob-year="2002"
+         data-country="Беларусь"
+         data-city="Минск"
+         data-region="Минская обл."
+         data-gender="Муж."
+         data-phone="+375290000000"
+         data-email="cyber@qip.ru"
+         data-work-company="QIP Team"
+         data-work-position="Dev"
+         data-about="QA & Testing"
+         data-status="Отошел">
+      <span class="status-icon away">🌼</span>
+      <span class="contact-name">CyberQIP</span>
     </div>
   </div>
 
-  <!-- Модальное окно настроек -->
-  <div id="settings-modal" class="modal" style="display:none;">
-    <div class="qip-window settings-window">
-      <div class="qip-titlebar">
-        <span>Настройки QIP</span>
-        <button class="close-btn" id="close-settings-btn">✕</button>
+  <!-- Контекстное меню (ПКМ) -->
+  <div id="contactMenu" class="context-menu">
+    <div id="menuTitle" class="menu-header">773989 - IGOR VEHORKOV</div>
+    <div class="menu-item" id="btnSendMessage">✉️ Отправить сообщение</div>
+    <div class="menu-item" id="btnAddNotice">⚠️ Отправить "Вас добавили"</div>
+    <div class="menu-divider"></div>
+    <div class="menu-item" id="btnUserInfo">ℹ️ Данные пользователя</div>
+    <div class="menu-item" id="btnCopyUin">📋 Скопировать UIN или SN в буфер обмена</div>
+    <div class="menu-item">📜 История сообщений</div>
+    <div class="menu-item">❌ Удалить себя из его списка контактов</div>
+    <div class="menu-item">😊 Позволить добавить вас</div>
+    <div class="menu-divider"></div>
+    <div class="menu-item">✉️ Править сотовый, email, заметку</div>
+    <div class="menu-item">✏️ Переименовать контакт</div>
+    <div class="menu-item danger">❌ Удалить контакт</div>
+    <div class="menu-divider"></div>
+    <div class="menu-item">👁️ Добавить в список видящих</div>
+    <div class="menu-item">🕶️ Добавить в список невидящих</div>
+    <div class="menu-item danger">🚫 Перенести в список игнорируемых</div>
+  </div>
+
+  <!-- Окно "Данные пользователя" (QIP UserInfo) -->
+  <div id="userInfoWin" class="user-info-win">
+    <div class="win-header">
+      <span id="infoWinTitle">Данные: [773989 - IGOR VEHORKOV]</span>
+      <span class="win-btn" id="btnCloseInfo">×</span>
+    </div>
+
+    <!-- Верхняя панель иконки/лого QIP -->
+    <div class="info-top-bar">
+      <div class="qip-logo-box">
+        <div class="qip-logo-placeholder">QIP</div>
+        <span>no icon</span>
       </div>
-      <div class="settings-body">
-        <div class="settings-sidebar">
-          <div class="sidebar-item active" data-tab="tab-account">Учётная запись</div>
-          <div class="sidebar-item" data-tab="tab-general">Общие</div>
+      <div class="user-header-details">
+        <div class="uin-line">
+          <strong>ICQ#: <span id="headerUin">773989</span></strong> 
+          <span class="status-indicator">🌸 (Необходима авторизация)</span>
         </div>
-        <div class="settings-content">
-          <div id="tab-account" class="tab-page active">
-            <fieldset class="qip-fieldset">
-              <legend>Профиль</legend>
-              <div class="field-row">
-                <label>UIN:</label>
-                <span id="account-uin-display" class="uin-val"></span>
-              </div>
-              <div class="field-row">
-                <label for="setting-name">Имя:</label>
-                <input type="text" id="setting-name">
-              </div>
-              <div class="field-row">
-                <label for="setting-mood">Статус-сообщение:</label>
-                <input type="text" id="setting-mood">
-              </div>
-            </fieldset>
-          </div>
-          <div id="tab-general" class="tab-page">
-            <fieldset class="qip-fieldset">
-              <legend>Звуки</legend>
-              <label><input type="checkbox" id="setting-sound" checked> Включить звуковые уведомления</label>
-            </fieldset>
-          </div>
+        <hr>
+        <div class="quick-info">
+          <div><b>Ник:</b> <span id="headerNick">Vista</span></div>
+          <div><b>Имя:</b> <span id="headerName">Игорь</span></div>
+          <div><b>Домашний адрес:</b> <span id="headerAddress">Россия</span></div>
+          <div><b>Пол:</b> <span id="headerGender">Муж.</span></div>
+          <div><b>Возраст:</b> <span id="headerAge">13</span></div>
+          <div><b>Дата рождения:</b> <span id="headerDob">18/12/2012</span></div>
         </div>
       </div>
-      <div class="settings-footer">
-        <button class="qip-btn" id="save-settings-btn">ОК</button>
-        <button class="qip-btn" id="cancel-settings-btn">Отмена</button>
+    </div>
+
+    <!-- Основной блок со списком вкладок -->
+    <div class="info-body">
+      <div class="sidebar-tabs">
+        <button class="tab-btn active" data-tab="tab-general">Общее</button>
+        <button class="tab-btn" data-tab="tab-info">Инфо</button>
+        <button class="tab-btn" data-tab="tab-home">Дом</button>
+        <button class="tab-btn" data-tab="tab-work">Работа</button>
+        <button class="tab-btn" data-tab="tab-personal">Личное</button>
+        <button class="tab-btn" data-tab="tab-interests">Интересы</button>
+        <button class="tab-btn" data-tab="tab-past">Прошлое</button>
+        <button class="tab-btn" data-tab="tab-about">О себе</button>
+        <button class="tab-btn" data-tab="tab-extra">Дополнительно</button>
       </div>
+
+      <div class="tab-content">
+        <!-- Вкладка: Общее -->
+        <div id="tab-general" class="tab-pane active">
+          <div class="field-row"><label>ICQ#:</label><input type="text" id="infoUin" readonly></div>
+          <div class="field-row"><label>Ник:</label><input type="text" id="infoNick" readonly></div>
+          <div class="field-row"><label>Имя:</label><input type="text" id="infoName" readonly></div>
+          <div class="field-row"><label>Пол:</label><input type="text" id="infoGender" readonly></div>
+          <div class="field-row"><label>Возраст:</label><input type="text" id="infoAge" readonly></div>
+        </div>
+
+        <!-- Вкладка: Инфо -->
+        <div id="tab-info" class="tab-pane">
+          <fieldset class="group-box">
+            <legend>Инфо</legend>
+            <div class="field-row"><label>ICQ#:</label><input type="text" id="tabInfoUin" readonly></div>
+            <div class="field-row"><label>IP:</label><input type="text" value="127.0.0.1" readonly></div>
+            <div class="field-row"><label>Подключен:</label><input type="text" value="Sun Sep 06 2026 13:44:28" readonly></div>
+          </fieldset>
+          <fieldset class="group-box">
+            <legend>Основной email</legend>
+            <div class="field-row"><label>Email:</label><input type="text" id="infoEmail" readonly></div>
+          </fieldset>
+        </div>
+
+        <!-- Вкладка: Дом -->
+        <div id="tab-home" class="tab-pane">
+          <fieldset class="group-box">
+            <legend>Домашний адрес</legend>
+            <div class="field-row"><label>Страна:</label><input type="text" id="infoCountry" readonly></div>
+            <div class="field-row"><label>Город:</label><input type="text" id="infoCity" readonly></div>
+            <div class="field-row"><label>Штат/обл.:</label><input type="text" id="infoRegion" readonly></div>
+            <div class="field-row"><label>Телефон:</label><input type="text" id="infoPhone" readonly></div>
+          </fieldset>
+        </div>
+
+        <!-- Вкладка: Работа -->
+        <div id="tab-work" class="tab-pane">
+          <fieldset class="group-box">
+            <legend>Компания</legend>
+            <div class="field-row"><label>Название:</label><input type="text" id="infoCompany" readonly></div>
+            <div class="field-row"><label>Должность:</label><input type="text" id="infoPosition" readonly></div>
+          </fieldset>
+        </div>
+
+        <!-- Вкладка: Личное -->
+        <div id="tab-personal" class="tab-pane">
+          <fieldset class="group-box">
+            <legend>Дата рождения</legend>
+            <div class="field-row-inline">
+              <label>День:</label><input type="text" id="infoDobDay" style="width: 40px;" readonly>
+              <label>Месяц:</label><input type="text" id="infoDobMonth" style="width: 40px;" readonly>
+              <label>Год:</label><input type="text" id="infoDobYear" style="width: 60px;" readonly>
+            </div>
+          </fieldset>
+        </div>
+
+        <!-- Вкладка: Интересы -->
+        <div id="tab-interests" class="tab-pane">
+          <fieldset class="group-box">
+            <legend>Личные интересы</legend>
+            <textarea style="width:100%; height:120px; resize:none;" readonly>Компьютеры, Web-разработка, QIP Interface, Игры</textarea>
+          </fieldset>
+        </div>
+
+        <!-- Вкладка: Прошлое -->
+        <div id="tab-past" class="tab-pane">
+          <fieldset class="group-box">
+            <legend>Прошлое / Организации</legend>
+            <div class="field-row"><label>Школа/ВУЗ:</label><input type="text" value="Не указано" readonly></div>
+          </fieldset>
+        </div>
+
+        <!-- Вкладка: О себе -->
+        <div id="tab-about" class="tab-pane">
+          <fieldset class="group-box">
+            <legend>Заметки о пользователе</legend>
+            <textarea id="infoAbout" style="width:100%; height:120px; resize:none;" readonly></textarea>
+          </fieldset>
+        </div>
+
+        <!-- Вкладка: Дополнительно -->
+        <div id="tab-extra" class="tab-pane">
+          <fieldset class="group-box">
+            <legend>Служебная информация</legend>
+            <div class="field-row"><label>Клиент:</label><input type="text" value="QIP 2005 Build 8095" readonly></div>
+            <div class="field-row"><label>Кодировка:</label><input type="text" value="Windows-1251" readonly></div>
+          </fieldset>
+        </div>
+      </div>
+    </div>
+
+    <!-- Нижние кнопки -->
+    <div class="info-footer">
+      <button class="qip-btn">🌐 Web-центр</button>
+      <button class="qip-btn">📥 Загрузить данные</button>
+      <button class="qip-btn" id="btnFooterClose">× Закрыть</button>
     </div>
   </div>
 
