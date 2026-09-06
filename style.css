@@ -41,7 +41,6 @@ body {
   text-align: center;
 }
 
-/* Окно авторизации */
 #auth-screen { display: flex; flex-direction: column; }
 .auth-window { width: 320px; }
 .auth-tabs { display: flex; background: #d4d0c8; border-bottom: 1px solid #808080; }
@@ -51,7 +50,6 @@ body {
 .auth-form input { padding: 4px; border: 1px solid #7f9db9; outline: none; }
 .error-msg { color: red; font-size: 10px; }
 
-/* Главный контейнер */
 .qip-main-container {
   display: flex;
   background: #ece9d8;
@@ -100,7 +98,6 @@ body {
   font-size: 14px;
 }
 
-/* Меню */
 .qip-menu {
   position: absolute;
   top: 36px;
@@ -118,7 +115,6 @@ body {
 .search-box { padding: 3px; display: flex; gap: 2px; border-bottom: 1px solid #ccc; }
 .search-box input { flex: 1; padding: 2px; border: 1px solid #7f9db9; }
 
-/* Контакты */
 .contacts-list { flex: 1; overflow-y: auto; background: #fff; }
 .group-header {
   background: #e0e0e0;
@@ -143,14 +139,13 @@ body {
 .status-dot.dnd { background: #ff0000; }
 .status-dot.offline { background: #888888; }
 
-/* Чат */
 .chat-area { flex: 1; display: flex; flex-direction: column; background: #fff; overflow: hidden; }
 .tabs-row { background: #d4d0c8; display: flex; border-bottom: 1px solid #999; }
 .tab { padding: 5px 10px; border-right: 1px solid #999; cursor: pointer; background: #ece9d8; }
 .tab.active { background: #fff; font-weight: bold; }
 
-.chats-container { flex: 1; position: relative; height: 0; }
-.chat-window { display: none; flex-direction: column; height: 100%; }
+.chats-container { flex: 1; position: relative; height: 100%; display: flex; flex-direction: column; }
+.chat-window { display: none; flex-direction: column; height: 100%; width: 100%; }
 .chat-window.active { display: flex; }
 
 .messages { flex: 1; padding: 8px; overflow-y: auto; background: #fff; }
@@ -162,7 +157,6 @@ body {
 .compose-row { padding: 6px; display: flex; gap: 6px; border-top: 1px solid #ccc; background: #ece9d8; }
 .compose-row textarea { flex: 1; height: 40px; resize: none; border: 1px solid #7f9db9; padding: 4px; }
 
-/* Модалка Настроек */
 .modal {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
