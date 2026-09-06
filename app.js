@@ -1,21 +1,21 @@
-// ===== QIP Community — Firebase (Auth + Firestore) + друзья + уведомления =====
+// ===== QIP Community — Firebase (Auth + Firestore) =====
 
 const PUBLIC_ROOM_ID = 'public';
 const BASE_TITLE = document.title;
 
-let currentUser = null;      // { uid, name, status }
-let allProfiles = [];        // все зарегистрированные пользователи (профили, кроме себя)
-let friendUids = new Set();  // uid-ы принятых друзей
-let openTabs = [];           // 'public' или uid друга
+let currentUser = null;
+let allProfiles = [];
+let friendUids = new Set();
+let openTabs = [];
 let activeTab = null;
-let unsubMessages = {};      // id -> unsubscribe firestore listener
-let unread = {};             // id -> счётчик непрочитанных
-let initializedChats = new Set(); // чтобы не звенеть на всю историю при первой загрузке
+let unsubMessages = {};
+let unread = {};
+let initializedChats = new Set();
 let unsubFriendships = null;
 let unsubRequests = null;
-let incomingRequests = [];   // входящие заявки в друзья (pending)
+let incomingRequests = [];
 
-// ===== DOM: авторизация =====
+// DOM Элементы
 const authScreen = document.getElementById('auth-screen');
 const appEl = document.getElementById('app');
 const loginForm = document.getElementById('login-form');
@@ -23,6 +23,7 @@ const registerForm = document.getElementById('register-form');
 const loginError = document.getElementById('login-error');
 const registerError = document.getElementById('register-error');
 
+// Вкладки авторизации
 document.querySelectorAll('.auth-tab').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.auth-tab').forEach(b => b.classList.remove('active'));
@@ -77,31 +78,34 @@ function translateAuthError(err){
   return map[err.code] || ('Ошибка: ' + err.message);
 }
 
-// ===== Auth state =====
+// Отслеживание состояния авторизации
 auth.onAuthStateChanged(async (user) => {
   if (user) {
-    const doc = await db.collection('users').doc(user.uid).get();
-    const data = doc.exists ? doc.data() : { name: user.email, status: 'online' };
-    currentUser = { uid: user.uid, name: data.name, status: data.status || 'online' };
+    try {
+      const doc = await db.collection('users').doc(user.uid).get();
+      const data = doc.exists ? doc.data() : { name: user.email, status: 'online' };
+      currentUser = { uid: user.uid, name: data.name || 'Пользователь', status: data.status || 'online' };
 
-    authScreen.style.display = 'none';
-    appEl.style.display = 'flex';
+      authScreen.style.display = 'none';
+      appEl.style.display = 'flex';
 
-    document.getElementById('own-name').textContent = currentUser.name;
-    document.getElementById('own-avatar').textContent = currentUser.name[0]?.toUpperCase() || '?';
-    document.getElementById('status-select').value = currentUser.status;
+      document.getElementById('own-name').textContent = currentUser.name;
+      document.getElementById('own-avatar').textContent = currentUser.name[0]?.toUpperCase() || '?';
+      document.getElementById('status-select').value = currentUser.status;
 
-    setPresence('online');
-    window.addEventListener('beforeunload', () => setPresence('offline'));
+      setPresence('online');
 
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+
+      listenProfiles();
+      listenFriendships();
+      listenFriendRequests();
+      openChat(PUBLIC_ROOM_ID);
+    } catch(e) {
+      console.error("Ошибка инициализации профиля:", e);
     }
-
-    listenProfiles();
-    listenFriendships();
-    listenFriendRequests();
-    openChat(PUBLIC_ROOM_ID);
   } else {
     currentUser = null;
     Object.values(unsubMessages).forEach(fn => fn && fn());
@@ -113,6 +117,8 @@ auth.onAuthStateChanged(async (user) => {
     friendUids = new Set();
     incomingRequests = [];
     initializedChats = new Set();
+    const chatsContainer = document.getElementById('chats-container');
+    if(chatsContainer) chatsContainer.innerHTML = '';
     authScreen.style.display = 'flex';
     appEl.style.display = 'none';
   }
@@ -132,23 +138,21 @@ async function setPresence(status){
   currentUser.status = status;
   try{
     await db.collection('users').doc(currentUser.uid).update({ status });
-  }catch(e){ /* пользователь мог уже разлогиниться */ }
+  } catch(e) {}
 }
 
-// ===== Профили всех пользователей (нужны для карточек друзей и поиска по email) =====
 function listenProfiles(){
   db.collection('users').onSnapshot(snap => {
     allProfiles = [];
     snap.forEach(doc => {
-      if(doc.id === currentUser.uid) return;
+      if(doc.id === currentUser?.uid) return;
       allProfiles.push({ id: doc.id, ...doc.data() });
     });
     renderContacts();
     renderTabs();
-  });
+  }, err => console.error("Ошибка получения профилей:", err));
 }
 
-// ===== Друзья =====
 function listenFriendships(){
   unsubFriendships = db.collection('friendships')
     .where('users', 'array-contains', currentUser.uid)
@@ -159,7 +163,7 @@ function listenFriendships(){
         if(other) friendUids.add(other);
       });
       renderContacts();
-    });
+    }, err => console.error("Ошибка загрузки списка друзей:", err));
 }
 
 function listenFriendRequests(){
@@ -170,48 +174,52 @@ function listenFriendRequests(){
       incomingRequests = [];
       snap.forEach(doc => incomingRequests.push({ id: doc.id, ...doc.data() }));
       renderFriendRequests();
-    });
+    }, err => console.error("Ошибка получения заявок:", err));
 }
 
-document.getElementById('add-friend-btn').addEventListener('click', async () => {
-  const email = prompt('Email друга, которого хочешь добавить:');
-  if(!email || !email.trim()) return;
-  const targetEmail = email.trim().toLowerCase();
+const addBtn = document.getElementById('add-friend-btn') || document.getElementById('add-contact-btn');
+if(addBtn) {
+  addBtn.addEventListener('click', async () => {
+    const email = prompt('Email друга, которого хочешь добавить:');
+    if(!email || !email.trim()) return;
+    const targetEmail = email.trim().toLowerCase();
 
-  if(targetEmail === (currentUser && (await db.collection('users').doc(currentUser.uid).get()).data().email)){
-    alert('Это твой собственный email :)');
-    return;
-  }
+    const myDoc = await db.collection('users').doc(currentUser.uid).get();
+    if(targetEmail === myDoc.data()?.email?.toLowerCase()){
+      alert('Это твой собственный email!');
+      return;
+    }
 
-  const target = allProfiles.find(p => (p.email || '').toLowerCase() === targetEmail);
-  if(!target){
-    alert('Пользователь с таким email не зарегистрирован в QIP Community.');
-    return;
-  }
-  if(friendUids.has(target.id)){
-    alert('Вы уже друзья.');
-    return;
-  }
+    const target = allProfiles.find(p => (p.email || '').toLowerCase() === targetEmail);
+    if(!target){
+      alert('Пользователь с таким email не найден.');
+      return;
+    }
+    if(friendUids.has(target.id)){
+      alert('Вы уже друзья.');
+      return;
+    }
 
-  const existing = await db.collection('friendRequests')
-    .where('from', '==', currentUser.uid)
-    .where('to', '==', target.id)
-    .where('status', '==', 'pending')
-    .get();
-  if(!existing.empty){
-    alert('Заявка уже отправлена, ждите ответа.');
-    return;
-  }
+    const existing = await db.collection('friendRequests')
+      .where('from', '==', currentUser.uid)
+      .where('to', '==', target.id)
+      .where('status', '==', 'pending')
+      .get();
+    if(!existing.empty){
+      alert('Заявка уже отправлена, ждите ответа.');
+      return;
+    }
 
-  await db.collection('friendRequests').add({
-    from: currentUser.uid,
-    fromName: currentUser.name,
-    to: target.id,
-    status: 'pending',
-    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    await db.collection('friendRequests').add({
+      from: currentUser.uid,
+      fromName: currentUser.name,
+      to: target.id,
+      status: 'pending',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    alert('Заявка в друзья отправлена!');
   });
-  alert('Заявка в друзья отправлена!');
-});
+}
 
 async function respondToRequest(reqId, accept){
   const req = incomingRequests.find(r => r.id === reqId);
@@ -230,6 +238,7 @@ async function respondToRequest(reqId, accept){
 
 function renderFriendRequests(){
   const box = document.getElementById('friend-requests-list');
+  if(!box) return;
   if(!incomingRequests.length){ box.innerHTML = ''; return; }
   box.innerHTML = `<div class="group-header requests-header">Заявки в друзья (${incomingRequests.length})</div>` +
     incomingRequests.map(r => `
@@ -245,9 +254,8 @@ function renderFriendRequests(){
   box.querySelectorAll('.decline-btn').forEach(b => b.addEventListener('click', () => respondToRequest(b.dataset.id, false)));
 }
 
-// ===== Список контактов (только друзья) =====
 const searchInput = document.getElementById('search-input');
-searchInput.addEventListener('input', renderContacts);
+if(searchInput) searchInput.addEventListener('input', renderContacts);
 
 function statusLabel(status){
   return { online:'В сети', away:'Отошёл', dnd:'Не беспокоить', offline:'Не в сети' }[status] || 'Не в сети';
@@ -255,10 +263,10 @@ function statusLabel(status){
 
 function renderContacts(){
   const list = document.getElementById('contacts-list');
-  const query = searchInput.value.trim().toLowerCase();
+  if(!list) return;
+  const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
   list.innerHTML = '';
 
-  // Пин: общий чат
   const pub = document.createElement('div');
   pub.className = 'contact-row public-room' + (activeTab === PUBLIC_ROOM_ID ? ' active' : '') + (unread[PUBLIC_ROOM_ID] ? ' unread' : '');
   pub.innerHTML = `
@@ -279,8 +287,8 @@ function renderContacts(){
 
   const friends = allProfiles
     .filter(p => friendUids.has(p.id))
-    .filter(p => p.name.toLowerCase().includes(query))
-    .sort((a,b) => a.name.localeCompare(b.name));
+    .filter(p => (p.name || '').toLowerCase().includes(query))
+    .sort((a,b) => (a.name || '').localeCompare(b.name || ''));
 
   if(!friends.length){
     const hint = document.createElement('div');
@@ -311,17 +319,18 @@ function getUserName(id){
   const u = allProfiles.find(u => u.id === id);
   return u ? u.name : '…';
 }
+
 function getUserStatus(id){
   if(id === PUBLIC_ROOM_ID) return 'online';
   const u = allProfiles.find(u => u.id === id);
   return u ? (u.status || 'offline') : 'offline';
 }
 
-// ===== Вкладки и чаты =====
 function dmPath(otherUid){
   const pairId = [currentUser.uid, otherUid].sort().join('_');
   return db.collection('dms').doc(pairId).collection('messages');
 }
+
 function messagesRef(id){
   return id === PUBLIC_ROOM_ID
     ? db.collection('rooms').doc(PUBLIC_ROOM_ID).collection('messages')
@@ -334,27 +343,33 @@ function openChat(id){
   unread[id] = 0;
   updateTitle();
   renderTabs();
-  renderChats();
+  ensureChatWindowExists(id);
+  switchActiveWindow(id);
   renderContacts();
   subscribeMessages(id);
 }
 
 function closeChat(id, evt){
   if(evt) evt.stopPropagation();
-  if(id === PUBLIC_ROOM_ID) return; // общий чат не закрываем
+  if(id === PUBLIC_ROOM_ID) return;
   openTabs = openTabs.filter(t => t !== id);
   if(unsubMessages[id]){ unsubMessages[id](); delete unsubMessages[id]; }
   initializedChats.delete(id);
+  
+  const win = document.querySelector(`.chat-window[data-chat-id="${id}"]`);
+  if(win) win.remove();
+
   if(activeTab === id){
     activeTab = openTabs.length ? openTabs[openTabs.length - 1] : null;
   }
   renderTabs();
-  renderChats();
+  if(activeTab) switchActiveWindow(activeTab);
   renderContacts();
 }
 
 function renderTabs(){
   const row = document.getElementById('tabs-row');
+  if(!row) return;
   row.innerHTML = '';
   openTabs.forEach(id => {
     const tab = document.createElement('div');
@@ -368,17 +383,14 @@ function renderTabs(){
   });
 }
 
-function renderChats(){
+function ensureChatWindowExists(id){
   const container = document.getElementById('chats-container');
-  const empty = document.getElementById('empty-state');
-  container.innerHTML = '';
-  empty.style.display = openTabs.length ? 'none' : 'flex';
-
-  openTabs.forEach(id => {
-    const win = document.createElement('div');
-    win.className = 'chat-window' + (id === activeTab ? ' active' : '');
+  if(!container) return;
+  let win = container.querySelector(`.chat-window[data-chat-id="${id}"]`);
+  if(!win){
+    win = document.createElement('div');
+    win.className = 'chat-window';
     win.dataset.chatId = id;
-
     win.innerHTML = `
       <div class="chat-header">
         <span class="status-dot ${getUserStatus(id)}"></span>
@@ -407,7 +419,7 @@ function renderChats(){
       btn.addEventListener('click', () => { textarea.value += btn.dataset.emoji; textarea.focus(); });
     });
 
-    function send(){
+    const send = () => {
       const text = textarea.value.trim();
       if(!text) return;
       textarea.value = '';
@@ -417,19 +429,35 @@ function renderChats(){
         text,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
-    }
+    };
 
     sendBtn.addEventListener('click', send);
     textarea.addEventListener('keydown', (e) => {
       if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); }
     });
+  }
+}
+
+function switchActiveWindow(id){
+  const container = document.getElementById('chats-container');
+  const empty = document.getElementById('empty-state');
+  if(!container) return;
+  
+  container.querySelectorAll('.chat-window').forEach(w => {
+    if(w.dataset.chatId === id){
+      w.classList.add('active');
+    } else {
+      w.classList.remove('active');
+    }
   });
+
+  if(empty) empty.style.display = id ? 'none' : 'flex';
 }
 
 function cssId(id){ return id.replace(/[^a-zA-Z0-9]/g, ''); }
 
 function subscribeMessages(id){
-  if(unsubMessages[id]) return; // уже подписаны, сообщения хранятся в Firestore постоянно
+  if(unsubMessages[id]) return;
   unsubMessages[id] = messagesRef(id)
     .orderBy('createdAt', 'asc')
     .limitToLast(300)
@@ -440,7 +468,7 @@ function subscribeMessages(id){
 
       if(el){
         el.innerHTML = msgs.map(m => {
-          const mine = m.uid === currentUser.uid;
+          const mine = m.uid === currentUser?.uid;
           const showName = id === PUBLIC_ROOM_ID && !mine;
           return `
             <div class="msg ${mine ? 'me' : 'them'}">
@@ -452,7 +480,6 @@ function subscribeMessages(id){
         el.scrollTop = el.scrollHeight;
       }
 
-      // Уведомления/звук только для НОВЫХ сообщений, не для истории при первой загрузке
       const isFirstLoad = !initializedChats.has(id);
       initializedChats.add(id);
 
@@ -460,7 +487,7 @@ function subscribeMessages(id){
         snap.docChanges().forEach(change => {
           if(change.type === 'added'){
             const m = change.doc.data();
-            if(m.uid !== currentUser.uid){
+            if(m.uid !== currentUser?.uid){
               notifyIncoming(id, m);
               if(id !== activeTab){
                 unread[id] = (unread[id] || 0) + 1;
@@ -472,7 +499,7 @@ function subscribeMessages(id){
           }
         });
       }
-    });
+    }, err => console.error("Ошибка получения сообщений:", err));
 }
 
 function formatTime(ts){
@@ -481,7 +508,6 @@ function formatTime(ts){
   return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
 }
 
-// ===== Уведомления: звук + системное всплывающее окно =====
 let audioCtx = null;
 function playBeep(){
   try{
@@ -496,7 +522,7 @@ function playBeep(){
     o.connect(g); g.connect(audioCtx.destination);
     o.start();
     o.stop(audioCtx.currentTime + 0.28);
-  }catch(e){ /* браузер мог заблокировать звук до первого клика пользователя — это нормально */ }
+  }catch(e){}
 }
 
 function notifyIncoming(id, m){
@@ -504,7 +530,7 @@ function notifyIncoming(id, m){
   if('Notification' in window && Notification.permission === 'granted' && document.hidden){
     try{
       new Notification(m.name || getUserName(id), { body: m.text });
-    }catch(e){ /* игнор */ }
+    }catch(e){}
   }
 }
 
