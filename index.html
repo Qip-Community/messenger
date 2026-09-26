@@ -1,84 +1,146 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>QIP Community — мессенджер</title>
-<meta name="description" content="QIP Community: настоящий браузерный мессенджер с общим чатом, друзьями и уведомлениями.">
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QIP Community — мессенджер</title>
+  <meta name="description" content="QIP Community: мессенджер с чатами, профилями и аватарами.">
+  
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="style.css">
+
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script defer src="firebase-config.js"></script>
+  <script defer src="app.js"></script>
 </head>
 <body>
 
-<!-- ===== Экран входа / регистрации ===== -->
-<div id="auth-screen">
-  <div id="auth-box">
-    <h1>QIP Community</h1>
+  <!-- ===== Экран входа / регистрации ===== -->
+  <div id="auth-screen">
+    <div id="auth-box">
+      <h1>QIP Community</h1>
 
-    <div id="auth-tabs">
-      <button class="auth-tab active" data-tab="login">Вход</button>
-      <button class="auth-tab" data-tab="register">Регистрация</button>
-    </div>
-
-    <form id="login-form" class="auth-form">
-      <input type="email" placeholder="Email" required id="login-email">
-      <input type="password" placeholder="Пароль" required id="login-password">
-      <button type="submit">Войти</button>
-      <p class="auth-error" id="login-error"></p>
-    </form>
-
-    <form id="register-form" class="auth-form" style="display:none">
-      <input type="text" placeholder="Ник (как вас видят другие)" required id="register-name" maxlength="30">
-      <input type="email" placeholder="Email" required id="register-email">
-      <input type="password" placeholder="Пароль (мин. 6 символов)" required id="register-password" minlength="6">
-      <button type="submit">Зарегистрироваться</button>
-      <p class="auth-error" id="register-error"></p>
-    </form>
-  </div>
-</div>
-
-<!-- ===== Приложение ===== -->
-<div id="app" style="display:none">
-
-  <aside id="contacts-panel">
-    <div id="own-status-bar">
-      <div id="own-avatar">Я</div>
-      <div id="own-info">
-        <div id="own-name">—</div>
-        <select id="status-select">
-          <option value="online">🟢 Онлайн</option>
-          <option value="away">🌙 Отошёл</option>
-          <option value="dnd">⛔ Не беспокоить</option>
-	  <option value="dnd">🕊️ Не в сети</option>
-        </select>
+      <div id="auth-tabs" role="tablist">
+        <button type="button" class="auth-tab active" data-tab="login" role="tab">Вход</button>
+        <button type="button" class="auth-tab" data-tab="register" role="tab">Регистрация</button>
       </div>
-      <button id="logout-btn" title="Выйти">⏻</button>
+
+      <form id="login-form" class="auth-form">
+        <input type="email" placeholder="Email" autocomplete="email" required id="login-email" aria-label="Email">
+        <input type="password" placeholder="Пароль" autocomplete="current-password" required id="login-password" aria-label="Пароль">
+        <button type="submit">Войти</button>
+        <p class="auth-error" id="login-error" aria-live="polite"></p>
+      </form>
+
+      <form id="register-form" class="auth-form" style="display:none">
+        <input type="text" placeholder="Ник (как вас видят другие)" autocomplete="nickname" required id="register-name" maxlength="30" aria-label="Никнейм">
+        <input type="email" placeholder="Email" autocomplete="email" required id="register-email" aria-label="Email">
+        <input type="password" placeholder="Пароль (мин. 6 символов)" autocomplete="new-password" required id="register-password" minlength="6" aria-label="Пароль">
+        <button type="submit">Зарегистрироваться</button>
+        <p class="auth-error" id="register-error" aria-live="polite"></p>
+      </form>
     </div>
+  </div>
 
-    <div id="search-row">
-      <input type="text" id="search-input" placeholder="Поиск среди друзей…">
-      <button id="add-friend-btn" title="Добавить друга по email">+</button>
+  <!-- ===== Приложение ===== -->
+  <div id="app" style="display:none">
+
+    <aside id="contacts-panel">
+      <div id="own-status-bar">
+        <div id="own-avatar-wrapper" title="Открыть настройки профиля">
+          <img id="own-avatar-img" src="" alt="Аватар" style="display:none;">
+          <div id="own-avatar-placeholder">Я</div>
+        </div>
+        <div id="own-info">
+          <div id="own-name">—</div>
+          <select id="status-select" aria-label="Смена статуса">
+            <option value="online">🟢 Онлайн</option>
+            <option value="away">🌙 Отошёл</option>
+            <option value="dnd">⛔ Не беспокоить</option>
+            <option value="offline">🕊️ Не в сети</option>
+          </select>
+        </div>
+        <button type="button" id="edit-profile-btn" title="Редактировать профиль" aria-label="Настройки профиля">⚙️</button>
+        <button type="button" id="logout-btn" title="Выйти" aria-label="Выйти из аккаунта">⏻</button>
+      </div>
+
+      <div id="search-row">
+        <input type="text" id="search-input" placeholder="Поиск среди друзей…" aria-label="Поиск среди друзей">
+        <button type="button" id="add-friend-btn" title="Добавить друга по email" aria-label="Добавить друга">+</button>
+      </div>
+
+      <div id="friend-requests-list"></div>
+      <div id="contacts-list"></div>
+    </aside>
+
+    <main id="chat-area">
+      <div id="tabs-row"></div>
+      <div id="chats-container"></div>
+      <div id="empty-state">
+        <p>Выберите общий чат или контакт слева</p>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- ===== Модальное окно: Мой профиль (Редактирование) ===== -->
+  <div id="profile-edit-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card">
+      <h2>Редактирование профиля</h2>
+      <form id="profile-edit-form">
+        <div class="avatar-preview-box">
+          <img id="edit-avatar-preview" src="" alt="Превью аватара" style="display:none;">
+          <div id="edit-avatar-placeholder">?</div>
+        </div>
+        
+        <label for="edit-avatar-url">URL изображения аватара:</label>
+        <input type="url" id="edit-avatar-url" placeholder="https://example.com/avatar.jpg">
+
+        <label for="edit-display-name">Никнейм:</label>
+        <input type="text" id="edit-display-name" maxlength="30" required>
+
+        <label for="edit-bio">О себе (Bio):</label>
+        <textarea id="edit-bio" maxlength="120" rows="3" placeholder="Расскажите о себе…"></textarea>
+
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" id="close-profile-edit-btn">Отмена</button>
+          <button type="submit" class="btn-primary">Сохранить</button>
+        </div>
+      </form>
     </div>
+  </div>
 
-    <div id="friend-requests-list"></div>
-    <div id="contacts-list"></div>
-  </aside>
+  <!-- ===== Модальное окно: Просмотр чужого профиля (Telegram style) ===== -->
+  <div id="user-profile-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card profile-view-card">
+      <button type="button" class="modal-close-icon" id="close-user-profile-btn">&times;</button>
+      
+      <div class="profile-header">
+        <img id="view-user-avatar" src="" alt="Аватар пользователя" style="display:none;">
+        <div id="view-user-avatar-placeholder" class="large-placeholder">?</div>
+        <h3 id="view-user-name">Имя пользователя</h3>
+        <span id="view-user-status" class="status-badge">Не в сети</span>
+      </div>
 
-  <main id="chat-area">
-    <div id="tabs-row"></div>
-    <div id="chats-container"></div>
-    <div id="empty-state">
-      <p>Выберите общий чат или контакт слева</p>
+      <div class="profile-body">
+        <div class="profile-info-group">
+          <span class="info-label">Email:</span>
+          <span id="view-user-email" class="info-value">—</span>
+        </div>
+        <div class="profile-info-group">
+          <span class="info-label">О себе:</span>
+          <p id="view-user-bio" class="info-value bio-text">Информация отсутствует.</p>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" id="start-chat-from-profile-btn" class="btn-primary">Написать сообщение</button>
+      </div>
     </div>
-  </main>
+  </div>
 
-</div>
-
-<!-- Firebase SDK (compat, без сборщика — подходит для GitHub Pages) -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-
-<script src="firebase-config.js"></script>
-<script src="app.js"></script>
 </body>
 </html>
