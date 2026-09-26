@@ -15,6 +15,7 @@ let initializedChats = new Set();
 let unsubFriendships = null;
 let unsubRequests = null;
 let incomingRequests = [];
+let selectedProfileUid = null;
 
 // DOM
 const authScreen = document.getElementById('auth-screen');
@@ -96,27 +97,15 @@ auth.onAuthStateChanged(async (user) => {
       currentUser = {
         uid: user.uid,
         name: data.name || 'Пользователь',
-        status: data.status || 'online'
+        status: data.status || 'online',
+        avatarUrl: data.avatarUrl || '',
+        bio: data.bio || ''
       };
 
       if (authScreen) authScreen.style.display = 'none';
       if (appEl) appEl.style.display = 'flex';
 
-      const ownName = document.getElementById('own-name');
-      const statusSelectEl = document.getElementById('status-select');
-      const ownAvatarImg = document.getElementById('own-avatar-img');
-      const ownAvatarPlaceholder = document.getElementById('own-avatar-placeholder');
-
-      if (ownName) ownName.textContent = currentUser.name;
-      if (statusSelectEl) statusSelectEl.value = currentUser.status;
-
-      if (data.avatarUrl && ownAvatarImg) {
-        ownAvatarImg.src = data.avatarUrl;
-        ownAvatarImg.style.display = 'block';
-        if (ownAvatarPlaceholder) ownAvatarPlaceholder.style.display = 'none';
-      } else if (ownAvatarPlaceholder) {
-        ownAvatarPlaceholder.textContent = (currentUser.name[0] || '?').toUpperCase();
-      }
+      updateOwnHeaderUI(data);
 
       setPresence('online');
 
@@ -149,6 +138,26 @@ auth.onAuthStateChanged(async (user) => {
     if (appEl) appEl.style.display = 'none';
   }
 });
+
+function updateOwnHeaderUI(data) {
+  const ownName = document.getElementById('own-name');
+  const statusSelectEl = document.getElementById('status-select');
+  const ownAvatarImg = document.getElementById('own-avatar-img');
+  const ownAvatarPlaceholder = document.getElementById('own-avatar-placeholder');
+
+  if (ownName) ownName.textContent = data.name || currentUser.name;
+  if (statusSelectEl) statusSelectEl.value = data.status || currentUser.status;
+
+  if (data.avatarUrl && ownAvatarImg) {
+    ownAvatarImg.src = data.avatarUrl;
+    ownAvatarImg.style.display = 'block';
+    if (ownAvatarPlaceholder) ownAvatarPlaceholder.style.display = 'none';
+  } else if (ownAvatarPlaceholder) {
+    ownAvatarImg.style.display = 'none';
+    ownAvatarPlaceholder.style.display = 'flex';
+    ownAvatarPlaceholder.textContent = ((data.name || currentUser.name)[0] || '?').toUpperCase();
+  }
+}
 
 const logoutBtn = document.getElementById('logout-btn');
 if (logoutBtn) {
@@ -184,6 +193,119 @@ function listenProfiles(){
     renderContacts();
     renderTabs();
   }, err => console.error("Ошибка получения профилей:", err));
+}
+
+// ---------- РЕДАКТИРОВАНИЕ СВОЕГО ПРОФИЛЯ ----------
+const editProfileBtn = document.getElementById('edit-profile-btn');
+const ownAvatarWrapper = document.getElementById('own-avatar-wrapper');
+const profileEditModal = document.getElementById('profile-edit-modal');
+const closeProfileEditBtn = document.getElementById('close-profile-edit-btn');
+const profileEditForm = document.getElementById('profile-edit-form');
+
+async function openOwnProfileModal() {
+  if (!currentUser) return;
+  try {
+    const snap = await db.collection('users').doc(currentUser.uid).get();
+    if (snap.exists) {
+      const data = snap.data();
+      document.getElementById('edit-display-name').value = data.name || '';
+      document.getElementById('edit-avatar-url').value = data.avatarUrl || '';
+      document.getElementById('edit-bio').value = data.bio || '';
+    }
+    if (profileEditModal) profileEditModal.style.display = 'flex';
+  } catch(e) {
+    console.error("Ошибка при открытии своего профиля:", e);
+  }
+}
+
+if (editProfileBtn) editProfileBtn.addEventListener('click', openOwnProfileModal);
+if (ownAvatarWrapper) ownAvatarWrapper.addEventListener('click', openOwnProfileModal);
+
+if (closeProfileEditBtn) {
+  closeProfileEditBtn.addEventListener('click', () => {
+    if (profileEditModal) profileEditModal.style.display = 'none';
+  });
+}
+
+if (profileEditForm) {
+  profileEditForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!currentUser) return;
+
+    const newName = document.getElementById('edit-display-name').value.trim();
+    const newAvatar = document.getElementById('edit-avatar-url').value.trim();
+    const newBio = document.getElementById('edit-bio').value.trim();
+
+    try {
+      await db.collection('users').doc(currentUser.uid).update({
+        name: newName,
+        avatarUrl: newAvatar,
+        bio: newBio
+      });
+
+      currentUser.name = newName;
+      currentUser.avatarUrl = newAvatar;
+      currentUser.bio = newBio;
+
+      updateOwnHeaderUI({ name: newName, avatarUrl: newAvatar, status: currentUser.status });
+
+      if (profileEditModal) profileEditModal.style.display = 'none';
+    } catch(e) {
+      console.error("Ошибка сохранения профиля:", e);
+      alert('Не удалось сохранить профиль: ' + e.message);
+    }
+  });
+}
+
+// ---------- ПРОСМОТР ЧУЖОГО ПРОФИЛЯ ----------
+const userProfileModal = document.getElementById('user-profile-modal');
+const closeUserProfileBtn = document.getElementById('close-user-profile-btn');
+const startChatFromProfileBtn = document.getElementById('start-chat-from-profile-btn');
+
+function openUserProfileModal(uid) {
+  const profile = allProfiles.find(p => p.id === uid);
+  if (!profile) return;
+
+  selectedProfileUid = uid;
+
+  const viewAvatar = document.getElementById('view-user-avatar');
+  const viewPlaceholder = document.getElementById('view-user-avatar-placeholder');
+  const viewName = document.getElementById('view-user-name');
+  const viewStatus = document.getElementById('view-user-status');
+  const viewEmail = document.getElementById('view-user-email');
+  const viewBio = document.getElementById('view-user-bio');
+
+  if (viewName) viewName.textContent = profile.name || 'Пользователь';
+  if (viewStatus) viewStatus.textContent = statusLabel(profile.status || 'offline');
+  if (viewEmail) viewEmail.textContent = profile.email || '—';
+  if (viewBio) viewBio.textContent = profile.bio || 'Статус отсутствует.';
+
+  if (profile.avatarUrl && viewAvatar) {
+    viewAvatar.src = profile.avatarUrl;
+    viewAvatar.style.display = 'block';
+    if (viewPlaceholder) viewPlaceholder.style.display = 'none';
+  } else if (viewPlaceholder) {
+    if (viewAvatar) viewAvatar.style.display = 'none';
+    viewPlaceholder.style.display = 'flex';
+    viewPlaceholder.textContent = ((profile.name || '?')[0]).toUpperCase();
+  }
+
+  if (userProfileModal) userProfileModal.style.display = 'flex';
+}
+
+if (closeUserProfileBtn) {
+  closeUserProfileBtn.addEventListener('click', () => {
+    if (userProfileModal) userProfileModal.style.display = 'none';
+  });
+}
+
+if (startChatFromProfileBtn) {
+  startChatFromProfileBtn.addEventListener('click', () => {
+    if (selectedProfileUid) {
+      openChat(selectedProfileUid);
+      if (userProfileModal) userProfileModal.style.display = 'none';
+    }
+  });
 }
 
 // ---------- Друзья ----------
@@ -350,7 +472,7 @@ function renderContacts(){
       <span class="status-dot ${u.status || 'offline'}"></span>
       <span class="contact-meta">
         <span class="contact-name">${escapeHtml(u.name)}</span>
-        <span class="contact-mood">${escapeHtml(u.mood || statusLabel(u.status))}</span>
+        <span class="contact-mood">${escapeHtml(u.bio || statusLabel(u.status))}</span>
       </span>
       ${unreadCount ? `<span class="unread-badge">${unreadCount}</span>` : ''}
     `;
@@ -440,8 +562,11 @@ function ensureChatWindowExists(id){
     win.className = 'chat-window';
     win.dataset.chatId = id;
     win.style.display = 'none';
+    
+    const clickHeaderToViewProfile = id !== PUBLIC_ROOM_ID ? 'style="cursor:pointer;" title="Открыть профиль"' : '';
+    
     win.innerHTML = `
-      <div class="chat-header">
+      <div class="chat-header" ${clickHeaderToViewProfile}>
         <span class="status-dot ${getUserStatus(id)}"></span>
         <strong>${escapeHtml(getUserName(id))}</strong>
         ${id !== PUBLIC_ROOM_ID ? `<span class="mood">${escapeHtml(statusLabel(getUserStatus(id)))}</span>` : ''}
@@ -460,6 +585,11 @@ function ensureChatWindowExists(id){
       </div>
     `;
     container.appendChild(win);
+
+    if (id !== PUBLIC_ROOM_ID) {
+      const headerEl = win.querySelector('.chat-header');
+      if (headerEl) headerEl.addEventListener('click', () => openUserProfileModal(id));
+    }
 
     const textarea = win.querySelector('textarea');
     const sendBtn = win.querySelector('.send-btn');
