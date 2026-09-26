@@ -15,6 +15,9 @@ let unsubFriendships = null;
 let unsubRequests = null;
 let incomingRequests = [];
 
+// Кэш уже созданных шапок DM, чтобы не писать в Firestore повторно
+const dmHeadersEnsured = new Set(); // [FIX]
+
 // DOM Элементы
 const authScreen = document.getElementById('auth-screen');
 const appEl = document.getElementById('app');
@@ -125,6 +128,7 @@ auth.onAuthStateChanged(async (user) => {
     friendUids = new Set();
     incomingRequests = [];
     initializedChats = new Set();
+    dmHeadersEnsured.clear(); // [FIX]
     const chatsContainer = document.getElementById('chats-container');
     if(chatsContainer) chatsContainer.innerHTML = '';
     if (authScreen) authScreen.style.display = 'flex';
@@ -224,29 +228,40 @@ if(addBtn) {
       return;
     }
 
-    await db.collection('friendRequests').add({
-      from: currentUser.uid,
-      fromName: currentUser.name,
-      to: target.id,
-      status: 'pending',
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    alert('Заявка в друзья отправлена!');
+    // [FIX] ловим permission-denied от правил
+    try {
+      await db.collection('friendRequests').add({
+        from: currentUser.uid,
+        fromName: currentUser.name,
+        to: target.id,
+        status: 'pending',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      alert('Заявка в друзья отправлена!');
+    } catch(e) {
+      console.error(e);
+      alert('Не удалось отправить заявку: ' + e.message);
+    }
   });
 }
 
 async function respondToRequest(reqId, accept){
   const req = incomingRequests.find(r => r.id === reqId);
   if(!req) return;
-  await db.collection('friendRequests').doc(reqId).update({
-    status: accept ? 'accepted' : 'declined'
-  });
-  if(accept){
-    const pair = [currentUser.uid, req.from].sort();
-    await db.collection('friendships').doc(pair.join('_')).set({
-      users: pair,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  try {
+    await db.collection('friendRequests').doc(reqId).update({
+      status: accept ? 'accepted' : 'declined'
     });
+    if(accept){
+      const pair = [currentUser.uid, req.from].sort();
+      await db.collection('friendships').doc(pair.join('_')).set({
+        users: pair,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+  } catch(e) {
+    console.error(e);
+    alert('Ошибка обработки заявки: ' + e.message);
   }
 }
 
@@ -340,15 +355,36 @@ function getUserStatus(id){
   return u ? (u.status || 'offline') : 'offline';
 }
 
-function dmPath(otherUid){
-  const pairId = [currentUser.uid, otherUid].sort().join('_');
-  return db.collection('dms').doc(pairId).collection('messages');
+function dmPairId(otherUid){ // [FIX] helper
+  return [currentUser.uid, otherUid].sort().join('_');
 }
 
 function messagesRef(id){
   return id === PUBLIC_ROOM_ID
     ? db.collection('rooms').doc(PUBLIC_ROOM_ID).collection('messages')
-    : dmPath(id);
+    : db.collection('dms').doc(dmPairId(id)).collection('messages');
+}
+
+// [FIX] Создать шапку DM с members, если её ещё нет.
+async function ensureDmHeader(otherUid){
+  if(otherUid === PUBLIC_ROOM_ID) return;
+  const pairId = dmPairId(otherUid);
+  if(dmHeadersEnsured.has(pairId)) return;
+  dmHeadersEnsured.add(pairId);
+
+  const ref = db.collection('dms').doc(pairId);
+  try {
+    const snap = await ref.get();
+    if(!snap.exists){
+      await ref.set({
+        members: [currentUser.uid, otherUid].sort(),
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+  } catch(e) {
+    console.error('Не удалось создать шапку DM:', e);
+    dmHeadersEnsured.delete(pairId); // дать шанс повторить
+  }
 }
 
 function openChat(id){
@@ -360,6 +396,7 @@ function openChat(id){
   ensureChatWindowExists(id);
   switchActiveWindow(id);
   renderContacts();
+  ensureDmHeader(id);       // [FIX]
   subscribeMessages(id);
 }
 
@@ -401,13 +438,12 @@ function ensureChatWindowExists(id){
   const container = document.getElementById('chats-container');
   if(!container) return;
   
-  // Если окно диалога с этим пользователем уже создано — не пересоздаем его!
   let win = container.querySelector(`.chat-window[data-chat-id="${id}"]`);
   if(!win){
     win = document.createElement('div');
     win.className = 'chat-window';
     win.dataset.chatId = id;
-    win.style.display = 'none'; // По умолчанию скрыто
+    win.style.display = 'none';
     win.innerHTML = `
       <div class="chat-header">
         <span class="status-dot ${getUserStatus(id)}"></span>
@@ -436,16 +472,27 @@ function ensureChatWindowExists(id){
       btn.addEventListener('click', () => { textarea.value += btn.dataset.emoji; textarea.focus(); });
     });
 
-    const send = () => {
+    const send = async () => {                       // [FIX] async
       const text = textarea.value.trim();
       if(!text) return;
       textarea.value = '';
-      messagesRef(id).add({
-        uid: currentUser.uid,
-        name: currentUser.name,
-        text,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
+
+      // На всякий случай убедимся, что шапка DM создана до отправки
+      if(id !== PUBLIC_ROOM_ID){
+        await ensureDmHeader(id);
+      }
+
+      try {
+        await messagesRef(id).add({
+          uid: currentUser.uid,
+          name: currentUser.name,
+          text,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      } catch(e) {
+        console.error('Ошибка отправки сообщения:', e);
+        alert('Не удалось отправить сообщение: ' + e.message);
+      }
     };
 
     sendBtn.addEventListener('click', send);
@@ -460,7 +507,6 @@ function switchActiveWindow(id){
   const empty = document.getElementById('empty-state');
   if(!container) return;
   
-  // Явно переключаем видимость блоков через display, чтобы сообщения не терялись
   container.querySelectorAll('.chat-window').forEach(w => {
     if(w.dataset.chatId === id){
       w.classList.add('active');
