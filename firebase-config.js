@@ -12,7 +12,5 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 
-// Глобальные объекты для app.js
 window.auth = firebase.auth();
 window.db   = firebase.firestore();
-
