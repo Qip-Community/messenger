@@ -299,7 +299,7 @@ function renderFriendRequests(){
   box.querySelectorAll('.decline-btn').forEach(b => b.addEventListener('click', () => respondToRequest(b.dataset.id, false)));
 }
 
-// ---------- UI: контакты, вкладки, чаты ----------
+// ---------- UI ----------
 const searchInput = document.getElementById('search-input');
 if (searchInput) searchInput.addEventListener('input', renderContacts);
 
