@@ -39,7 +39,8 @@ const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
 
-// ===== Далее — вся логика приложения =====
+// ===== QIP Community — Firebase v10 (compat) =====
+// auth и db созданы в firebase-config.js
 
 const PUBLIC_ROOM_ID = 'public';
 const BASE_TITLE = document.title;
