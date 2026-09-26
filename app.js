@@ -1,44 +1,3 @@
-// ===== QIP Community — Firebase v10 (modular) =====
-
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import {
-  getAuth,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  onAuthStateChanged,
-  signOut
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import {
-  getFirestore,
-  collection,
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  addDoc,
-  onSnapshot,
-  query,
-  where,
-  orderBy,
-  limitToLast,
-  serverTimestamp
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-// ---------- Конфиг Firebase ----------
-// ВСТАВЬ СВОЙ КОНФИГ (из консоли Firebase → Project settings → Your apps → Web)
-const firebaseConfig = {
-  apiKey: "ВСТАВЬ",
-  authDomain: "ВСТАВЬ",
-  projectId: "ВСТАВЬ",
-  storageBucket: "ВСТАВЬ",
-  messagingSenderId: "ВСТАВЬ",
-  appId: "ВСТАВЬ"
-};
-
-const app  = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db   = getFirestore(app);
-
 // ===== QIP Community — Firebase v10 (compat) =====
 // auth и db созданы в firebase-config.js
 
@@ -84,7 +43,7 @@ if (loginForm) {
     const email = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value;
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await auth.signInWithEmailAndPassword(email, password);
     } catch (err) {
       if (loginError) loginError.textContent = translateAuthError(err);
     }
@@ -99,13 +58,15 @@ if (registerForm) {
     const email = document.getElementById('register-email').value.trim();
     const password = document.getElementById('register-password').value;
     try {
-      const cred = await createUserWithEmailAndPassword(auth, email, password);
-      await setDoc(doc(db, 'users', cred.user.uid), {
+      const cred = await auth.createUserWithEmailAndPassword(email, password);
+      await db.collection('users').doc(cred.user.uid).set({
         name: name || email.split('@')[0],
         email: email.toLowerCase(),
         status: 'online',
         mood: '',
-        createdAt: serverTimestamp()
+        bio: '',
+        avatarUrl: '',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
     } catch (err) {
       if (registerError) registerError.textContent = translateAuthError(err);
@@ -120,29 +81,43 @@ function translateAuthError(err){
     'auth/weak-password': 'Пароль слишком простой (минимум 6 символов).',
     'auth/user-not-found': 'Пользователь с таким email не найден.',
     'auth/wrong-password': 'Неверный пароль.',
-    'auth/invalid-credential': 'Неверный email или пароль.'
+    'auth/invalid-credential': 'Неверный email или пароль.',
+    'auth/unauthorized-domain': 'Этот домен не разрешён в Firebase Auth.'
   };
   return map[err.code] || ('Ошибка: ' + err.message);
 }
 
-onAuthStateChanged(auth, async (user) => {
+// ---------- Авторизация ----------
+auth.onAuthStateChanged(async (user) => {
   if (user) {
     try {
-      const docRef = doc(db, 'users', user.uid);
-      const snap = await getDoc(docRef);
-      const data = snap.exists() ? snap.data() : { name: user.email, status: 'online' };
-      currentUser = { uid: user.uid, name: data.name || 'Пользователь', status: data.status || 'online' };
+      const docRef = db.collection('users').doc(user.uid);
+      const snap = await docRef.get();
+      const data = snap.exists ? snap.data() : { name: user.email, status: 'online' };
+      currentUser = {
+        uid: user.uid,
+        name: data.name || 'Пользователь',
+        status: data.status || 'online'
+      };
 
       if (authScreen) authScreen.style.display = 'none';
       if (appEl) appEl.style.display = 'flex';
 
       const ownName = document.getElementById('own-name');
-      const ownAvatar = document.getElementById('own-avatar');
       const statusSelectEl = document.getElementById('status-select');
+      const ownAvatarImg = document.getElementById('own-avatar-img');
+      const ownAvatarPlaceholder = document.getElementById('own-avatar-placeholder');
 
       if (ownName) ownName.textContent = currentUser.name;
-      if (ownAvatar) ownAvatar.textContent = currentUser.name[0]?.toUpperCase() || '?';
       if (statusSelectEl) statusSelectEl.value = currentUser.status;
+
+      if (data.avatarUrl && ownAvatarImg) {
+        ownAvatarImg.src = data.avatarUrl;
+        ownAvatarImg.style.display = 'block';
+        if (ownAvatarPlaceholder) ownAvatarPlaceholder.style.display = 'none';
+      } else if (ownAvatarPlaceholder) {
+        ownAvatarPlaceholder.textContent = (currentUser.name[0] || '?').toUpperCase();
+      }
 
       setPresence('online');
 
@@ -170,7 +145,7 @@ onAuthStateChanged(auth, async (user) => {
     initializedChats = new Set();
     dmHeadersEnsured.clear();
     const chatsContainer = document.getElementById('chats-container');
-    if(chatsContainer) chatsContainer.innerHTML = '';
+    if (chatsContainer) chatsContainer.innerHTML = '';
     if (authScreen) authScreen.style.display = 'flex';
     if (appEl) appEl.style.display = 'none';
   }
@@ -179,8 +154,8 @@ onAuthStateChanged(auth, async (user) => {
 const logoutBtn = document.getElementById('logout-btn');
 if (logoutBtn) {
   logoutBtn.addEventListener('click', async () => {
-    await setPresence('offline');
-    await signOut(auth);
+    try { await setPresence('offline'); } catch(e) {}
+    await auth.signOut();
   });
 }
 
@@ -192,18 +167,19 @@ if (statusSelect) {
 }
 
 async function setPresence(status){
-  if(!currentUser) return;
+  if (!currentUser) return;
   currentUser.status = status;
-  try{
-    await updateDoc(doc(db, 'users', currentUser.uid), { status });
-  } catch(e) {}
+  try {
+    await db.collection('users').doc(currentUser.uid).update({ status });
+  } catch(e) { /* ignore */ }
 }
 
+// ---------- Профили ----------
 function listenProfiles(){
-  onSnapshot(collection(db, 'users'), snap => {
+  db.collection('users').onSnapshot(snap => {
     allProfiles = [];
     snap.forEach(d => {
-      if(d.id === currentUser?.uid) return;
+      if (d.id === currentUser?.uid) return;
       allProfiles.push({ id: d.id, ...d.data() });
     });
     renderContacts();
@@ -211,76 +187,71 @@ function listenProfiles(){
   }, err => console.error("Ошибка получения профилей:", err));
 }
 
+// ---------- Друзья ----------
 function listenFriendships(){
-  const q = query(collection(db, 'friendships'), where('users', 'array-contains', currentUser.uid));
-  unsubFriendships = onSnapshot(q, snap => {
-    friendUids = new Set();
-    snap.forEach(d => {
-      const other = d.data().users.find(u => u !== currentUser.uid);
-      if(other) friendUids.add(other);
-    });
-    renderContacts();
-  }, err => console.error("Ошибка загрузки списка друзей:", err));
+  unsubFriendships = db.collection('friendships')
+    .where('users', 'array-contains', currentUser.uid)
+    .onSnapshot(snap => {
+      friendUids = new Set();
+      snap.forEach(d => {
+        const other = (d.data().users || []).find(u => u !== currentUser.uid);
+        if (other) friendUids.add(other);
+      });
+      renderContacts();
+    }, err => console.error("Ошибка загрузки списка друзей:", err));
 }
 
 function listenFriendRequests(){
-  const q = query(
-    collection(db, 'friendRequests'),
-    where('to', '==', currentUser.uid),
-    where('status', '==', 'pending')
-  );
-  unsubRequests = onSnapshot(q, snap => {
-    incomingRequests = [];
-    snap.forEach(d => incomingRequests.push({ id: d.id, ...d.data() }));
-    renderFriendRequests();
-  }, err => console.error("Ошибка получения заявок:", err));
+  unsubRequests = db.collection('friendRequests')
+    .where('to', '==', currentUser.uid)
+    .where('status', '==', 'pending')
+    .onSnapshot(snap => {
+      incomingRequests = [];
+      snap.forEach(d => incomingRequests.push({ id: d.id, ...d.data() }));
+      renderFriendRequests();
+    }, err => console.error("Ошибка получения заявок:", err));
 }
 
 const addBtn = document.getElementById('add-friend-btn') || document.getElementById('add-contact-btn');
-if(addBtn) {
+if (addBtn) {
   addBtn.addEventListener('click', async () => {
     const email = prompt('Email друга, которого хочешь добавить:');
-    if(!email || !email.trim()) return;
+    if (!email || !email.trim()) return;
     const targetEmail = email.trim().toLowerCase();
 
-    const mySnap = await getDoc(doc(db, 'users', currentUser.uid));
-    if(targetEmail === mySnap.data()?.email?.toLowerCase()){
+    const mySnap = await db.collection('users').doc(currentUser.uid).get();
+    if (targetEmail === mySnap.data()?.email?.toLowerCase()) {
       alert('Это твой собственный email!');
       return;
     }
 
     const target = allProfiles.find(p => (p.email || '').toLowerCase() === targetEmail);
-    if(!target){
+    if (!target) {
       alert('Пользователь с таким email не найден.');
       return;
     }
-    if(friendUids.has(target.id)){
+    if (friendUids.has(target.id)) {
       alert('Вы уже друзья.');
       return;
     }
 
-    const existingQ = query(
-      collection(db, 'friendRequests'),
-      where('from', '==', currentUser.uid),
-      where('to', '==', target.id),
-      where('status', '==', 'pending')
-    );
-    const existing = await new Promise(res => {
-      const unsub = onSnapshot(existingQ, snap => { unsub(); res(snap); },
-        err => { unsub(); res({ empty: true }); });
-    });
-    if(!existing.empty){
+    const existing = await db.collection('friendRequests')
+      .where('from', '==', currentUser.uid)
+      .where('to', '==', target.id)
+      .where('status', '==', 'pending')
+      .get();
+    if (!existing.empty) {
       alert('Заявка уже отправлена, ждите ответа.');
       return;
     }
 
     try {
-      await addDoc(collection(db, 'friendRequests'), {
+      await db.collection('friendRequests').add({
         from: currentUser.uid,
         fromName: currentUser.name,
         to: target.id,
         status: 'pending',
-        createdAt: serverTimestamp()
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
       alert('Заявка в друзья отправлена!');
     } catch(e) {
@@ -292,16 +263,16 @@ if(addBtn) {
 
 async function respondToRequest(reqId, accept){
   const req = incomingRequests.find(r => r.id === reqId);
-  if(!req) return;
+  if (!req) return;
   try {
-    await updateDoc(doc(db, 'friendRequests', reqId), {
+    await db.collection('friendRequests').doc(reqId).update({
       status: accept ? 'accepted' : 'declined'
     });
-    if(accept){
+    if (accept) {
       const pair = [currentUser.uid, req.from].sort();
-      await setDoc(doc(db, 'friendships', pair.join('_')), {
+      await db.collection('friendships').doc(pair.join('_')).set({
         users: pair,
-        createdAt: serverTimestamp()
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
     }
   } catch(e) {
@@ -312,8 +283,8 @@ async function respondToRequest(reqId, accept){
 
 function renderFriendRequests(){
   const box = document.getElementById('friend-requests-list');
-  if(!box) return;
-  if(!incomingRequests.length){ box.innerHTML = ''; return; }
+  if (!box) return;
+  if (!incomingRequests.length) { box.innerHTML = ''; return; }
   box.innerHTML = `<div class="group-header requests-header">Заявки в друзья (${incomingRequests.length})</div>` +
     incomingRequests.map(r => `
       <div class="friend-request-row" data-id="${r.id}">
@@ -328,8 +299,9 @@ function renderFriendRequests(){
   box.querySelectorAll('.decline-btn').forEach(b => b.addEventListener('click', () => respondToRequest(b.dataset.id, false)));
 }
 
+// ---------- UI: контакты, вкладки, чаты ----------
 const searchInput = document.getElementById('search-input');
-if(searchInput) searchInput.addEventListener('input', renderContacts);
+if (searchInput) searchInput.addEventListener('input', renderContacts);
 
 function statusLabel(status){
   return { online:'В сети', away:'Отошёл', dnd:'Не беспокоить', offline:'Не в сети' }[status] || 'Не в сети';
@@ -337,7 +309,7 @@ function statusLabel(status){
 
 function renderContacts(){
   const list = document.getElementById('contacts-list');
-  if(!list) return;
+  if (!list) return;
   const q = searchInput ? searchInput.value.trim().toLowerCase() : '';
   list.innerHTML = '';
 
@@ -364,7 +336,7 @@ function renderContacts(){
     .filter(p => (p.name || '').toLowerCase().includes(q))
     .sort((a,b) => (a.name || '').localeCompare(b.name || ''));
 
-  if(!friends.length){
+  if (!friends.length) {
     const hint = document.createElement('div');
     hint.className = 'empty-hint';
     hint.textContent = 'Пока нет друзей — нажми "+" рядом с поиском и добавь по email.';
@@ -389,40 +361,41 @@ function renderContacts(){
 }
 
 function getUserName(id){
-  if(id === PUBLIC_ROOM_ID) return 'Общий чат';
+  if (id === PUBLIC_ROOM_ID) return 'Общий чат';
   const u = allProfiles.find(u => u.id === id);
   return u ? u.name : '…';
 }
 
 function getUserStatus(id){
-  if(id === PUBLIC_ROOM_ID) return 'online';
+  if (id === PUBLIC_ROOM_ID) return 'online';
   const u = allProfiles.find(u => u.id === id);
   return u ? (u.status || 'offline') : 'offline';
 }
 
+// ---------- DM ----------
 function dmPairId(otherUid){
   return [currentUser.uid, otherUid].sort().join('_');
 }
 
 function messagesRef(id){
   return id === PUBLIC_ROOM_ID
-    ? collection(db, 'rooms', PUBLIC_ROOM_ID, 'messages')
-    : collection(db, 'dms', dmPairId(id), 'messages');
+    ? db.collection('rooms').doc(PUBLIC_ROOM_ID).collection('messages')
+    : db.collection('dms').doc(dmPairId(id)).collection('messages');
 }
 
 async function ensureDmHeader(otherUid){
-  if(otherUid === PUBLIC_ROOM_ID) return;
+  if (otherUid === PUBLIC_ROOM_ID) return;
   const pairId = dmPairId(otherUid);
-  if(dmHeadersEnsured.has(pairId)) return;
+  if (dmHeadersEnsured.has(pairId)) return;
   dmHeadersEnsured.add(pairId);
 
-  const ref = doc(db, 'dms', pairId);
+  const ref = db.collection('dms').doc(pairId);
   try {
-    const snap = await getDoc(ref);
-    if(!snap.exists()){
-      await setDoc(ref, {
+    const snap = await ref.get();
+    if (!snap.exists) {
+      await ref.set({
         members: [currentUser.uid, otherUid].sort(),
-        createdAt: serverTimestamp()
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
     }
   } catch(e) {
@@ -432,7 +405,7 @@ async function ensureDmHeader(otherUid){
 }
 
 function openChat(id){
-  if(!openTabs.includes(id)) openTabs.push(id);
+  if (!openTabs.includes(id)) openTabs.push(id);
   activeTab = id;
   unread[id] = 0;
   updateTitle();
@@ -445,26 +418,26 @@ function openChat(id){
 }
 
 function closeChat(id, evt){
-  if(evt) evt.stopPropagation();
-  if(id === PUBLIC_ROOM_ID) return;
+  if (evt) evt.stopPropagation();
+  if (id === PUBLIC_ROOM_ID) return;
   openTabs = openTabs.filter(t => t !== id);
-  if(unsubMessages[id]){ unsubMessages[id](); delete unsubMessages[id]; }
+  if (unsubMessages[id]) { unsubMessages[id](); delete unsubMessages[id]; }
   initializedChats.delete(id);
 
   const win = document.querySelector(`.chat-window[data-chat-id="${id}"]`);
-  if(win) win.remove();
+  if (win) win.remove();
 
-  if(activeTab === id){
+  if (activeTab === id) {
     activeTab = openTabs.length ? openTabs[openTabs.length - 1] : null;
   }
   renderTabs();
-  if(activeTab) switchActiveWindow(activeTab);
+  if (activeTab) switchActiveWindow(activeTab);
   renderContacts();
 }
 
 function renderTabs(){
   const row = document.getElementById('tabs-row');
-  if(!row) return;
+  if (!row) return;
   row.innerHTML = '';
   openTabs.forEach(id => {
     const tab = document.createElement('div');
@@ -473,17 +446,17 @@ function renderTabs(){
     tab.innerHTML = `<span class="status-dot ${getUserStatus(id)}"></span> ${escapeHtml(getUserName(id))} ${closeBtn}`;
     tab.addEventListener('click', () => openChat(id));
     const cb = tab.querySelector('.close-tab');
-    if(cb) cb.addEventListener('click', (e) => closeChat(id, e));
+    if (cb) cb.addEventListener('click', (e) => closeChat(id, e));
     row.appendChild(tab);
   });
 }
 
 function ensureChatWindowExists(id){
   const container = document.getElementById('chats-container');
-  if(!container) return;
+  if (!container) return;
 
   let win = container.querySelector(`.chat-window[data-chat-id="${id}"]`);
-  if(!win){
+  if (!win) {
     win = document.createElement('div');
     win.className = 'chat-window';
     win.dataset.chatId = id;
@@ -513,24 +486,27 @@ function ensureChatWindowExists(id){
     const sendBtn = win.querySelector('.send-btn');
 
     win.querySelectorAll('.compose-toolbar button').forEach(btn => {
-      btn.addEventListener('click', () => { textarea.value += btn.dataset.emoji; textarea.focus(); });
+      btn.addEventListener('click', () => {
+        textarea.value += btn.dataset.emoji;
+        textarea.focus();
+      });
     });
 
     const send = async () => {
       const text = textarea.value.trim();
-      if(!text) return;
+      if (!text) return;
       textarea.value = '';
 
-      if(id !== PUBLIC_ROOM_ID){
+      if (id !== PUBLIC_ROOM_ID) {
         await ensureDmHeader(id);
       }
 
       try {
-        await addDoc(messagesRef(id), {
+        await messagesRef(id).add({
           uid: currentUser.uid,
           name: currentUser.name,
           text,
-          createdAt: serverTimestamp()
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
       } catch(e) {
         console.error('Ошибка отправки сообщения:', e);
@@ -540,7 +516,7 @@ function ensureChatWindowExists(id){
 
     sendBtn.addEventListener('click', send);
     textarea.addEventListener('keydown', (e) => {
-      if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); }
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
     });
   }
 }
@@ -548,10 +524,10 @@ function ensureChatWindowExists(id){
 function switchActiveWindow(id){
   const container = document.getElementById('chats-container');
   const empty = document.getElementById('empty-state');
-  if(!container) return;
+  if (!container) return;
 
   container.querySelectorAll('.chat-window').forEach(w => {
-    if(w.dataset.chatId === id){
+    if (w.dataset.chatId === id) {
       w.classList.add('active');
       w.style.display = 'flex';
     } else {
@@ -560,61 +536,64 @@ function switchActiveWindow(id){
     }
   });
 
-  if(empty) empty.style.display = id ? 'none' : 'flex';
+  if (empty) empty.style.display = id ? 'none' : 'flex';
 }
 
 function cssId(id){ return id.replace(/[^a-zA-Z0-9]/g, ''); }
 
 function subscribeMessages(id){
-  if(unsubMessages[id]) return;
-  const q = query(messagesRef(id), orderBy('createdAt', 'asc'), limitToLast(300));
-  unsubMessages[id] = onSnapshot(q, snap => {
-    const el = document.getElementById(`messages-${cssId(id)}`);
-    const msgs = [];
-    snap.forEach(d => msgs.push(d.data()));
+  if (unsubMessages[id]) return;
+  unsubMessages[id] = messagesRef(id)
+    .orderBy('createdAt', 'asc')
+    .limitToLast(300)
+    .onSnapshot(snap => {
+      const el = document.getElementById(`messages-${cssId(id)}`);
+      const msgs = [];
+      snap.forEach(d => msgs.push(d.data()));
 
-    if(el){
-      el.innerHTML = msgs.map(m => {
-        const mine = m.uid === currentUser?.uid;
-        const showName = id === PUBLIC_ROOM_ID && !mine;
-        return `
-          <div class="msg ${mine ? 'me' : 'them'}">
-            ${showName ? `<span class="sender">${escapeHtml(m.name || '')}</span>` : ''}
-            ${escapeHtml(m.text)}
-            <span class="meta">${formatTime(m.createdAt)}</span>
-          </div>`;
-      }).join('');
-      el.scrollTop = el.scrollHeight;
-    }
+      if (el) {
+        el.innerHTML = msgs.map(m => {
+          const mine = m.uid === currentUser?.uid;
+          const showName = id === PUBLIC_ROOM_ID && !mine;
+          return `
+            <div class="msg ${mine ? 'me' : 'them'}">
+              ${showName ? `<span class="sender">${escapeHtml(m.name || '')}</span>` : ''}
+              ${escapeHtml(m.text)}
+              <span class="meta">${formatTime(m.createdAt)}</span>
+            </div>`;
+        }).join('');
+        el.scrollTop = el.scrollHeight;
+      }
 
-    const isFirstLoad = !initializedChats.has(id);
-    initializedChats.add(id);
+      const isFirstLoad = !initializedChats.has(id);
+      initializedChats.add(id);
 
-    if(!isFirstLoad){
-      snap.docChanges().forEach(change => {
-        if(change.type === 'added'){
-          const m = change.doc.data();
-          if(m.uid !== currentUser?.uid){
-            notifyIncoming(id, m);
-            if(id !== activeTab){
-              unread[id] = (unread[id] || 0) + 1;
-              renderContacts();
-              renderTabs();
-              updateTitle();
+      if (!isFirstLoad) {
+        snap.docChanges().forEach(change => {
+          if (change.type === 'added') {
+            const m = change.doc.data();
+            if (m.uid !== currentUser?.uid) {
+              notifyIncoming(id, m);
+              if (id !== activeTab) {
+                unread[id] = (unread[id] || 0) + 1;
+                renderContacts();
+                renderTabs();
+                updateTitle();
+              }
             }
           }
-        }
-      });
-    }
-  }, err => console.error("Ошибка получения сообщений:", err));
+        });
+      }
+    }, err => console.error("Ошибка получения сообщений:", err));
 }
 
 function formatTime(ts){
-  if(!ts || !ts.toDate) return '…';
+  if (!ts || !ts.toDate) return '…';
   const d = ts.toDate();
   return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
 }
 
+// ---------- Уведомления ----------
 let audioCtx = null;
 function playBeep(){
   try{
@@ -629,15 +608,15 @@ function playBeep(){
     o.connect(g); g.connect(audioCtx.destination);
     o.start();
     o.stop(audioCtx.currentTime + 0.28);
-  }catch(e){}
+  } catch(e) {}
 }
 
 function notifyIncoming(id, m){
   playBeep();
-  if('Notification' in window && Notification.permission === 'granted' && document.hidden){
-    try{
+  if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
+    try {
       new Notification(m.name || getUserName(id), { body: m.text });
-    }catch(e){}
+    } catch(e) {}
   }
 }
 
