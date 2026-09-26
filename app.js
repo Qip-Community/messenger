@@ -1,4 +1,45 @@
-// ===== QIP Community — Firebase (Auth + Firestore) =====
+// ===== QIP Community — Firebase v10 (modular) =====
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore,
+  collection,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  addDoc,
+  onSnapshot,
+  query,
+  where,
+  orderBy,
+  limitToLast,
+  serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// ---------- Конфиг Firebase ----------
+// ВСТАВЬ СВОЙ КОНФИГ (из консоли Firebase → Project settings → Your apps → Web)
+const firebaseConfig = {
+  apiKey: "ВСТАВЬ",
+  authDomain: "ВСТАВЬ",
+  projectId: "ВСТАВЬ",
+  storageBucket: "ВСТАВЬ",
+  messagingSenderId: "ВСТАВЬ",
+  appId: "ВСТАВЬ"
+};
+
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
+
+// ===== Далее — вся логика приложения =====
 
 const PUBLIC_ROOM_ID = 'public';
 const BASE_TITLE = document.title;
@@ -14,11 +55,9 @@ let initializedChats = new Set();
 let unsubFriendships = null;
 let unsubRequests = null;
 let incomingRequests = [];
+const dmHeadersEnsured = new Set();
 
-// Кэш уже созданных шапок DM, чтобы не писать в Firestore повторно
-const dmHeadersEnsured = new Set(); // [FIX]
-
-// DOM Элементы
+// DOM
 const authScreen = document.getElementById('auth-screen');
 const appEl = document.getElementById('app');
 const loginForm = document.getElementById('login-form');
@@ -44,7 +83,7 @@ if (loginForm) {
     const email = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value;
     try {
-      await auth.signInWithEmailAndPassword(email, password);
+      await signInWithEmailAndPassword(auth, email, password);
     } catch (err) {
       if (loginError) loginError.textContent = translateAuthError(err);
     }
@@ -59,13 +98,13 @@ if (registerForm) {
     const email = document.getElementById('register-email').value.trim();
     const password = document.getElementById('register-password').value;
     try {
-      const cred = await auth.createUserWithEmailAndPassword(email, password);
-      await db.collection('users').doc(cred.user.uid).set({
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      await setDoc(doc(db, 'users', cred.user.uid), {
         name: name || email.split('@')[0],
         email: email.toLowerCase(),
         status: 'online',
         mood: '',
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        createdAt: serverTimestamp()
       });
     } catch (err) {
       if (registerError) registerError.textContent = translateAuthError(err);
@@ -85,12 +124,12 @@ function translateAuthError(err){
   return map[err.code] || ('Ошибка: ' + err.message);
 }
 
-// Отслеживание состояния авторизации
-auth.onAuthStateChanged(async (user) => {
+onAuthStateChanged(auth, async (user) => {
   if (user) {
     try {
-      const doc = await db.collection('users').doc(user.uid).get();
-      const data = doc.exists ? doc.data() : { name: user.email, status: 'online' };
+      const docRef = doc(db, 'users', user.uid);
+      const snap = await getDoc(docRef);
+      const data = snap.exists() ? snap.data() : { name: user.email, status: 'online' };
       currentUser = { uid: user.uid, name: data.name || 'Пользователь', status: data.status || 'online' };
 
       if (authScreen) authScreen.style.display = 'none';
@@ -98,11 +137,11 @@ auth.onAuthStateChanged(async (user) => {
 
       const ownName = document.getElementById('own-name');
       const ownAvatar = document.getElementById('own-avatar');
-      const statusSelect = document.getElementById('status-select');
+      const statusSelectEl = document.getElementById('status-select');
 
       if (ownName) ownName.textContent = currentUser.name;
       if (ownAvatar) ownAvatar.textContent = currentUser.name[0]?.toUpperCase() || '?';
-      if (statusSelect) statusSelect.value = currentUser.status;
+      if (statusSelectEl) statusSelectEl.value = currentUser.status;
 
       setPresence('online');
 
@@ -128,7 +167,7 @@ auth.onAuthStateChanged(async (user) => {
     friendUids = new Set();
     incomingRequests = [];
     initializedChats = new Set();
-    dmHeadersEnsured.clear(); // [FIX]
+    dmHeadersEnsured.clear();
     const chatsContainer = document.getElementById('chats-container');
     if(chatsContainer) chatsContainer.innerHTML = '';
     if (authScreen) authScreen.style.display = 'flex';
@@ -140,7 +179,7 @@ const logoutBtn = document.getElementById('logout-btn');
 if (logoutBtn) {
   logoutBtn.addEventListener('click', async () => {
     await setPresence('offline');
-    await auth.signOut();
+    await signOut(auth);
   });
 }
 
@@ -155,16 +194,16 @@ async function setPresence(status){
   if(!currentUser) return;
   currentUser.status = status;
   try{
-    await db.collection('users').doc(currentUser.uid).update({ status });
+    await updateDoc(doc(db, 'users', currentUser.uid), { status });
   } catch(e) {}
 }
 
 function listenProfiles(){
-  db.collection('users').onSnapshot(snap => {
+  onSnapshot(collection(db, 'users'), snap => {
     allProfiles = [];
-    snap.forEach(doc => {
-      if(doc.id === currentUser?.uid) return;
-      allProfiles.push({ id: doc.id, ...doc.data() });
+    snap.forEach(d => {
+      if(d.id === currentUser?.uid) return;
+      allProfiles.push({ id: d.id, ...d.data() });
     });
     renderContacts();
     renderTabs();
@@ -172,27 +211,28 @@ function listenProfiles(){
 }
 
 function listenFriendships(){
-  unsubFriendships = db.collection('friendships')
-    .where('users', 'array-contains', currentUser.uid)
-    .onSnapshot(snap => {
-      friendUids = new Set();
-      snap.forEach(doc => {
-        const other = doc.data().users.find(u => u !== currentUser.uid);
-        if(other) friendUids.add(other);
-      });
-      renderContacts();
-    }, err => console.error("Ошибка загрузки списка друзей:", err));
+  const q = query(collection(db, 'friendships'), where('users', 'array-contains', currentUser.uid));
+  unsubFriendships = onSnapshot(q, snap => {
+    friendUids = new Set();
+    snap.forEach(d => {
+      const other = d.data().users.find(u => u !== currentUser.uid);
+      if(other) friendUids.add(other);
+    });
+    renderContacts();
+  }, err => console.error("Ошибка загрузки списка друзей:", err));
 }
 
 function listenFriendRequests(){
-  unsubRequests = db.collection('friendRequests')
-    .where('to', '==', currentUser.uid)
-    .where('status', '==', 'pending')
-    .onSnapshot(snap => {
-      incomingRequests = [];
-      snap.forEach(doc => incomingRequests.push({ id: doc.id, ...doc.data() }));
-      renderFriendRequests();
-    }, err => console.error("Ошибка получения заявок:", err));
+  const q = query(
+    collection(db, 'friendRequests'),
+    where('to', '==', currentUser.uid),
+    where('status', '==', 'pending')
+  );
+  unsubRequests = onSnapshot(q, snap => {
+    incomingRequests = [];
+    snap.forEach(d => incomingRequests.push({ id: d.id, ...d.data() }));
+    renderFriendRequests();
+  }, err => console.error("Ошибка получения заявок:", err));
 }
 
 const addBtn = document.getElementById('add-friend-btn') || document.getElementById('add-contact-btn');
@@ -202,8 +242,8 @@ if(addBtn) {
     if(!email || !email.trim()) return;
     const targetEmail = email.trim().toLowerCase();
 
-    const myDoc = await db.collection('users').doc(currentUser.uid).get();
-    if(targetEmail === myDoc.data()?.email?.toLowerCase()){
+    const mySnap = await getDoc(doc(db, 'users', currentUser.uid));
+    if(targetEmail === mySnap.data()?.email?.toLowerCase()){
       alert('Это твой собственный email!');
       return;
     }
@@ -218,24 +258,28 @@ if(addBtn) {
       return;
     }
 
-    const existing = await db.collection('friendRequests')
-      .where('from', '==', currentUser.uid)
-      .where('to', '==', target.id)
-      .where('status', '==', 'pending')
-      .get();
+    const existingQ = query(
+      collection(db, 'friendRequests'),
+      where('from', '==', currentUser.uid),
+      where('to', '==', target.id),
+      where('status', '==', 'pending')
+    );
+    const existing = await new Promise(res => {
+      const unsub = onSnapshot(existingQ, snap => { unsub(); res(snap); },
+        err => { unsub(); res({ empty: true }); });
+    });
     if(!existing.empty){
       alert('Заявка уже отправлена, ждите ответа.');
       return;
     }
 
-    // [FIX] ловим permission-denied от правил
     try {
-      await db.collection('friendRequests').add({
+      await addDoc(collection(db, 'friendRequests'), {
         from: currentUser.uid,
         fromName: currentUser.name,
         to: target.id,
         status: 'pending',
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        createdAt: serverTimestamp()
       });
       alert('Заявка в друзья отправлена!');
     } catch(e) {
@@ -249,14 +293,14 @@ async function respondToRequest(reqId, accept){
   const req = incomingRequests.find(r => r.id === reqId);
   if(!req) return;
   try {
-    await db.collection('friendRequests').doc(reqId).update({
+    await updateDoc(doc(db, 'friendRequests', reqId), {
       status: accept ? 'accepted' : 'declined'
     });
     if(accept){
       const pair = [currentUser.uid, req.from].sort();
-      await db.collection('friendships').doc(pair.join('_')).set({
+      await setDoc(doc(db, 'friendships', pair.join('_')), {
         users: pair,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        createdAt: serverTimestamp()
       });
     }
   } catch(e) {
@@ -293,7 +337,7 @@ function statusLabel(status){
 function renderContacts(){
   const list = document.getElementById('contacts-list');
   if(!list) return;
-  const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+  const q = searchInput ? searchInput.value.trim().toLowerCase() : '';
   list.innerHTML = '';
 
   const pub = document.createElement('div');
@@ -316,7 +360,7 @@ function renderContacts(){
 
   const friends = allProfiles
     .filter(p => friendUids.has(p.id))
-    .filter(p => (p.name || '').toLowerCase().includes(query))
+    .filter(p => (p.name || '').toLowerCase().includes(q))
     .sort((a,b) => (a.name || '').localeCompare(b.name || ''));
 
   if(!friends.length){
@@ -355,35 +399,34 @@ function getUserStatus(id){
   return u ? (u.status || 'offline') : 'offline';
 }
 
-function dmPairId(otherUid){ // [FIX] helper
+function dmPairId(otherUid){
   return [currentUser.uid, otherUid].sort().join('_');
 }
 
 function messagesRef(id){
   return id === PUBLIC_ROOM_ID
-    ? db.collection('rooms').doc(PUBLIC_ROOM_ID).collection('messages')
-    : db.collection('dms').doc(dmPairId(id)).collection('messages');
+    ? collection(db, 'rooms', PUBLIC_ROOM_ID, 'messages')
+    : collection(db, 'dms', dmPairId(id), 'messages');
 }
 
-// [FIX] Создать шапку DM с members, если её ещё нет.
 async function ensureDmHeader(otherUid){
   if(otherUid === PUBLIC_ROOM_ID) return;
   const pairId = dmPairId(otherUid);
   if(dmHeadersEnsured.has(pairId)) return;
   dmHeadersEnsured.add(pairId);
 
-  const ref = db.collection('dms').doc(pairId);
+  const ref = doc(db, 'dms', pairId);
   try {
-    const snap = await ref.get();
-    if(!snap.exists){
-      await ref.set({
+    const snap = await getDoc(ref);
+    if(!snap.exists()){
+      await setDoc(ref, {
         members: [currentUser.uid, otherUid].sort(),
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        createdAt: serverTimestamp()
       });
     }
   } catch(e) {
     console.error('Не удалось создать шапку DM:', e);
-    dmHeadersEnsured.delete(pairId); // дать шанс повторить
+    dmHeadersEnsured.delete(pairId);
   }
 }
 
@@ -396,7 +439,7 @@ function openChat(id){
   ensureChatWindowExists(id);
   switchActiveWindow(id);
   renderContacts();
-  ensureDmHeader(id);       // [FIX]
+  ensureDmHeader(id);
   subscribeMessages(id);
 }
 
@@ -406,7 +449,7 @@ function closeChat(id, evt){
   openTabs = openTabs.filter(t => t !== id);
   if(unsubMessages[id]){ unsubMessages[id](); delete unsubMessages[id]; }
   initializedChats.delete(id);
-  
+
   const win = document.querySelector(`.chat-window[data-chat-id="${id}"]`);
   if(win) win.remove();
 
@@ -437,7 +480,7 @@ function renderTabs(){
 function ensureChatWindowExists(id){
   const container = document.getElementById('chats-container');
   if(!container) return;
-  
+
   let win = container.querySelector(`.chat-window[data-chat-id="${id}"]`);
   if(!win){
     win = document.createElement('div');
@@ -472,22 +515,21 @@ function ensureChatWindowExists(id){
       btn.addEventListener('click', () => { textarea.value += btn.dataset.emoji; textarea.focus(); });
     });
 
-    const send = async () => {                       // [FIX] async
+    const send = async () => {
       const text = textarea.value.trim();
       if(!text) return;
       textarea.value = '';
 
-      // На всякий случай убедимся, что шапка DM создана до отправки
       if(id !== PUBLIC_ROOM_ID){
         await ensureDmHeader(id);
       }
 
       try {
-        await messagesRef(id).add({
+        await addDoc(messagesRef(id), {
           uid: currentUser.uid,
           name: currentUser.name,
           text,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          createdAt: serverTimestamp()
         });
       } catch(e) {
         console.error('Ошибка отправки сообщения:', e);
@@ -506,7 +548,7 @@ function switchActiveWindow(id){
   const container = document.getElementById('chats-container');
   const empty = document.getElementById('empty-state');
   if(!container) return;
-  
+
   container.querySelectorAll('.chat-window').forEach(w => {
     if(w.dataset.chatId === id){
       w.classList.add('active');
@@ -524,48 +566,46 @@ function cssId(id){ return id.replace(/[^a-zA-Z0-9]/g, ''); }
 
 function subscribeMessages(id){
   if(unsubMessages[id]) return;
-  unsubMessages[id] = messagesRef(id)
-    .orderBy('createdAt', 'asc')
-    .limitToLast(300)
-    .onSnapshot(snap => {
-      const el = document.getElementById(`messages-${cssId(id)}`);
-      const msgs = [];
-      snap.forEach(doc => msgs.push(doc.data()));
+  const q = query(messagesRef(id), orderBy('createdAt', 'asc'), limitToLast(300));
+  unsubMessages[id] = onSnapshot(q, snap => {
+    const el = document.getElementById(`messages-${cssId(id)}`);
+    const msgs = [];
+    snap.forEach(d => msgs.push(d.data()));
 
-      if(el){
-        el.innerHTML = msgs.map(m => {
-          const mine = m.uid === currentUser?.uid;
-          const showName = id === PUBLIC_ROOM_ID && !mine;
-          return `
-            <div class="msg ${mine ? 'me' : 'them'}">
-              ${showName ? `<span class="sender">${escapeHtml(m.name || '')}</span>` : ''}
-              ${escapeHtml(m.text)}
-              <span class="meta">${formatTime(m.createdAt)}</span>
-            </div>`;
-        }).join('');
-        el.scrollTop = el.scrollHeight;
-      }
+    if(el){
+      el.innerHTML = msgs.map(m => {
+        const mine = m.uid === currentUser?.uid;
+        const showName = id === PUBLIC_ROOM_ID && !mine;
+        return `
+          <div class="msg ${mine ? 'me' : 'them'}">
+            ${showName ? `<span class="sender">${escapeHtml(m.name || '')}</span>` : ''}
+            ${escapeHtml(m.text)}
+            <span class="meta">${formatTime(m.createdAt)}</span>
+          </div>`;
+      }).join('');
+      el.scrollTop = el.scrollHeight;
+    }
 
-      const isFirstLoad = !initializedChats.has(id);
-      initializedChats.add(id);
+    const isFirstLoad = !initializedChats.has(id);
+    initializedChats.add(id);
 
-      if(!isFirstLoad){
-        snap.docChanges().forEach(change => {
-          if(change.type === 'added'){
-            const m = change.doc.data();
-            if(m.uid !== currentUser?.uid){
-              notifyIncoming(id, m);
-              if(id !== activeTab){
-                unread[id] = (unread[id] || 0) + 1;
-                renderContacts();
-                renderTabs();
-                updateTitle();
-              }
+    if(!isFirstLoad){
+      snap.docChanges().forEach(change => {
+        if(change.type === 'added'){
+          const m = change.doc.data();
+          if(m.uid !== currentUser?.uid){
+            notifyIncoming(id, m);
+            if(id !== activeTab){
+              unread[id] = (unread[id] || 0) + 1;
+              renderContacts();
+              renderTabs();
+              updateTitle();
             }
           }
-        });
-      }
-    }, err => console.error("Ошибка получения сообщений:", err));
+        }
+      });
+    }
+  }, err => console.error("Ошибка получения сообщений:", err));
 }
 
 function formatTime(ts){
