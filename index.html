@@ -5,16 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>QIP Community — мессенджер</title>
   <meta name="description" content="QIP Community: мессенджер с чатами, профилями и аватарами.">
-  
+
   <link rel="icon" href="favicon.ico" type="image/x-icon">
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
   <link rel="stylesheet" href="style.css">
-
-  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-  <script defer src="firebase-config.js"></script>
-  <script defer src="app.js"></script>
 </head>
 <body>
 
@@ -86,7 +80,7 @@
 
   </div>
 
-  <!-- ===== Модальное окно: Мой профиль (Редактирование) ===== -->
+  <!-- ===== Модальное окно: Мой профиль ===== -->
   <div id="profile-edit-modal" class="modal-overlay" style="display:none;">
     <div class="modal-card">
       <h2>Редактирование профиля</h2>
@@ -95,7 +89,7 @@
           <img id="edit-avatar-preview" src="" alt="Превью аватара" style="display:none;">
           <div id="edit-avatar-placeholder">?</div>
         </div>
-        
+
         <label for="edit-avatar-url">URL изображения аватара:</label>
         <input type="url" id="edit-avatar-url" placeholder="https://example.com/avatar.jpg">
 
@@ -113,11 +107,11 @@
     </div>
   </div>
 
-  <!-- ===== Модальное окно: Просмотр чужого профиля (Telegram style) ===== -->
+  <!-- ===== Модальное окно: Просмотр чужого профиля ===== -->
   <div id="user-profile-modal" class="modal-overlay" style="display:none;">
     <div class="modal-card profile-view-card">
       <button type="button" class="modal-close-icon" id="close-user-profile-btn">&times;</button>
-      
+
       <div class="profile-header">
         <img id="view-user-avatar" src="" alt="Аватар пользователя" style="display:none;">
         <div id="view-user-avatar-placeholder" class="large-placeholder">?</div>
@@ -142,5 +136,11 @@
     </div>
   </div>
 
+  <!-- ===== Firebase (compat) + приложение ===== -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
