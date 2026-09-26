@@ -188,14 +188,6 @@ const profileEditModal = document.getElementById('profile-edit-modal');
 const closeProfileEditBtn = document.getElementById('close-profile-edit-btn');
 const ownAvatarWrapper = document.getElementById('own-avatar-wrapper');
 
-// Открытие редактора собственного профиля
-if (editProfileBtn) {
-  editProfileBtn.addEventListener('click', openOwnProfileModal);
-}
-if (ownAvatarWrapper) {
-  ownAvatarWrapper.addEventListener('click', openOwnProfileModal);
-}
-
 function openOwnProfileModal() {
   if (!currentUser) return;
   document.getElementById('edit-display-name').value = currentUser.name || '';
@@ -203,6 +195,9 @@ function openOwnProfileModal() {
   document.getElementById('edit-bio').value = currentUser.bio || '';
   if (profileEditModal) profileEditModal.style.display = 'flex';
 }
+
+if (editProfileBtn) editProfileBtn.addEventListener('click', openOwnProfileModal);
+if (ownAvatarWrapper) ownAvatarWrapper.addEventListener('click', openOwnProfileModal);
 
 if (closeProfileEditBtn) closeProfileEditBtn.addEventListener('click', () => {
   if (profileEditModal) profileEditModal.style.display = 'none';
@@ -223,7 +218,7 @@ document.getElementById('profile-edit-form')?.addEventListener('submit', async (
   if (profileEditModal) profileEditModal.style.display = 'none';
 });
 
-// Модальное окно просмотра чужого профиля
+// Модальное окно просмотра профиля пользователя
 function openUserProfile(userId) {
   if (!userId) return;
   if (userId === currentUser?.uid) {
@@ -272,6 +267,7 @@ function openUserProfile(userId) {
 
   if (modal) modal.style.display = 'flex';
 }
+window.openUserProfile = openUserProfile;
 
 document.getElementById('close-user-profile-btn')?.addEventListener('click', () => {
   const modal = document.getElementById('user-profile-modal');
@@ -362,13 +358,13 @@ async function respondReq(reqId, accept){
     });
   }
 }
+window.respondReq = respondReq;
 
 function renderContacts(){
   const list = document.getElementById('contacts-list');
   if(!list) return;
   list.innerHTML = '';
 
-  // 1. Общий чат
   const pub = document.createElement('div');
   pub.className = 'contact-row' + (activeTab === PUBLIC_ROOM_ID ? ' active' : '');
   pub.innerHTML = `
@@ -378,37 +374,26 @@ function renderContacts(){
   pub.onclick = () => openChat(PUBLIC_ROOM_ID);
   list.appendChild(pub);
 
-  // 2. Заголовок контактов
   const header = document.createElement('div');
   header.className = 'group-header';
   header.textContent = `Контакты (${friendUids.size})`;
   list.appendChild(header);
 
-  // 3. Фильтрация: берем ТОЛЬКО тех пользователей, чьи UID есть в friendUids
-  const friends = allProfiles.filter(p => friendUids.has(p.id));
-
-  if (friends.length === 0) {
-    // Подсказка, если друзей ещё нет
-    const emptyNotice = document.createElement('div');
-    emptyNotice.style.cssText = 'padding: 12px 10px; font-size: 11px; color: #888; text-align: center; line-height: 1.4;';
-    emptyNotice.textContent = 'Список пуст. Нажмите «+» выше и введите Email, чтобы отправить запрос.';
-    list.appendChild(emptyNotice);
-  } else {
-    friends.forEach(u => {
-      const row = document.createElement('div');
-      row.className = 'contact-row' + (u.id === activeTab ? ' active' : '');
-      row.innerHTML = `
-        <span class="status-dot ${u.status || 'offline'}"></span>
-        <span class="contact-meta">
-          <span class="contact-name">${escapeHtml(u.name)}</span>
-          <span class="contact-mood">${escapeHtml(u.bio || '')}</span>
-        </span>
-      `;
-      row.onclick = () => openChat(u.id);
-      list.appendChild(row);
-    });
-  }
+  allProfiles.filter(p => friendUids.has(p.id)).forEach(u => {
+    const row = document.createElement('div');
+    row.className = 'contact-row' + (u.id === activeTab ? ' active' : '');
+    row.innerHTML = `
+      <span class="status-dot ${u.status || 'offline'}"></span>
+      <span class="contact-meta">
+        <span class="contact-name">${escapeHtml(u.name)}</span>
+        <span class="contact-mood">${escapeHtml(u.bio || '')}</span>
+      </span>
+    `;
+    row.onclick = () => openChat(u.id);
+    list.appendChild(row);
+  });
 }
+
 function openChat(id){
   if(!openTabs.includes(id)) openTabs.push(id);
   activeTab = id;
@@ -552,7 +537,6 @@ function subscribeMessages(id){
     });
 }
 
-// Воспроизведение звуков QIP / ICQ
 function playQipSound(type) {
   if (!soundEnabled) return;
   try {
@@ -563,7 +547,6 @@ function playQipSound(type) {
     gain.connect(ctx.destination);
 
     if (type === 'receive') {
-      // Звук входящего сообщения ICQ "Uh-Oh" style
       osc.type = 'sine';
       osc.frequency.setValueAtTime(600, ctx.currentTime);
       osc.frequency.setValueAtTime(900, ctx.currentTime + 0.08);
@@ -572,7 +555,6 @@ function playQipSound(type) {
       osc.start();
       osc.stop(ctx.currentTime + 0.25);
     } else {
-      // Звук отправки сообщения
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(400, ctx.currentTime);
       osc.frequency.setValueAtTime(800, ctx.currentTime + 0.05);
